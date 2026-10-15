@@ -18,6 +18,8 @@ import {
   ASK_USER_TOOL_NAME,
   ENTER_PLAN_MODE_TOOL_NAME,
   EXIT_PLAN_MODE_TOOL_NAME,
+  READ_FILE_TOOL_NAME,
+  READ_MANY_FILES_TOOL_NAME,
 } from '../tools/tool-names.js';
 import { ToolOutputMaskingEvent } from '../telemetry/types.js';
 
@@ -160,6 +162,7 @@ export class ToolOutputMaskingService {
     // Perform masking and offloading
     const newHistory = [...history]; // Shallow copy of history
     let actualTokensSaved = 0;
+    let maskedRetrievalOutput = false;
     let toolOutputsDir = path.join(
       config.storage.getProjectTempDir(),
       TOOL_OUTPUTS_DIR,
@@ -239,7 +242,19 @@ export class ToolOutputMaskingService {
         newHistory[contentIndex] = { ...contentRecord, parts: newParts };
         actualTokensSaved += savings;
         maskedCount++;
+        if (
+          toolName === READ_FILE_TOOL_NAME ||
+          toolName === READ_MANY_FILES_TOOL_NAME
+        ) {
+          maskedRetrievalOutput = true;
+        }
       }
+    }
+
+    // A retrieval tool output left the model context: the file content it
+    // contained can no longer be assumed to be present verbatim.
+    if (maskedRetrievalOutput) {
+      config.getFileReadState?.()?.markAllMasked();
     }
 
     debugLogger.debug(

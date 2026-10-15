@@ -1103,6 +1103,7 @@ export async function loadCliConfig(
     maxAttempts: settings.general?.maxAttempts,
     ptyInfo: ptyInfo?.name,
     disableLLMCorrection: settings.tools?.disableLLMCorrection,
+    requireReadBeforeEdit: settings.tools?.requireReadBeforeEdit,
     rawOutput: argv.rawOutput,
     acceptRawOutputRisk: argv.acceptRawOutputRisk,
     dynamicModelConfiguration: settings.experimental?.dynamicModelConfiguration,

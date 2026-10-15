@@ -171,6 +171,24 @@ class ReadFileToolInvocation extends BaseToolInvocation<
       };
     }
 
+    // Record that the model has now seen this file's content, so later
+    // writes/edits can be validated against a known-good snapshot.
+    if (typeof result.llmContent === 'string') {
+      let startLine = this.params.start_line;
+      let endLine = this.params.end_line;
+      if (result.isTruncated && result.linesShown) {
+        startLine = startLine ?? result.linesShown[0];
+        endLine = endLine ?? result.linesShown[1];
+      }
+      const readState = this.config.getFileReadState?.();
+      if (readState) {
+        await readState.recordRead(targetPathToRead, result.llmContent, {
+          startLine,
+          endLine,
+        });
+      }
+    }
+
     let llmContent: PartListUnion;
     if (result.isTruncated) {
       const [start, end] = result.linesShown!;

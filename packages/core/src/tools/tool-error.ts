@@ -36,6 +36,10 @@ export enum ToolErrorType {
   SEARCH_PATH_NOT_FOUND = 'search_path_not_found',
   SEARCH_PATH_NOT_A_DIRECTORY = 'search_path_not_a_directory',
 
+  // Read-before-edit guard Errors
+  FILE_NOT_READ = 'file_not_read',
+  FILE_STALE = 'file_stale',
+
   // Edit-specific Errors
   EDIT_PREPARATION_FAILURE = 'edit_preparation_failure',
   EDIT_NO_OCCURRENCE_FOUND = 'edit_no_occurrence_found',

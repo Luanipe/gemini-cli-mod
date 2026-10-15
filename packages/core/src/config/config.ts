@@ -143,6 +143,7 @@ import type { GenerateContentParameters } from '@google/genai';
 export type { MCPOAuthConfig, AnyToolInvocation, AnyDeclarativeTool };
 import type { AnyToolInvocation, AnyDeclarativeTool } from '../tools/tools.js';
 import { WorkspaceContext } from '../utils/workspaceContext.js';
+import { FileReadStateTracker } from '../utils/fileReadState.js';
 import {
   getWorkspaceContextOverride,
   hasScopedAutoMemoryExtractionWriteAccess,
@@ -733,6 +734,7 @@ export interface ConfigParameters {
   topicUpdateNarration?: boolean;
 
   disableLLMCorrection?: boolean;
+  requireReadBeforeEdit?: boolean;
   plan?: boolean;
   tracker?: boolean;
   planSettings?: PlanSettings;
@@ -981,6 +983,8 @@ export class Config implements McpContext, AgentLoopContext {
   private readonly memoryBoundaryMarkers: readonly string[];
   private readonly topicUpdateNarration: boolean;
   private readonly disableLLMCorrection: boolean;
+  private readonly requireReadBeforeEdit: boolean;
+  private readonly fileReadState = new FileReadStateTracker();
   private readonly planEnabled: boolean;
   private readonly voiceMode: boolean;
   private readonly trackerEnabled: boolean;
@@ -1141,6 +1145,7 @@ export class Config implements McpContext, AgentLoopContext {
     this.enableAgents = params.enableAgents ?? true;
     this.agents = params.agents ?? {};
     this.disableLLMCorrection = params.disableLLMCorrection ?? true;
+    this.requireReadBeforeEdit = params.requireReadBeforeEdit ?? true;
     this.planEnabled = params.plan ?? true;
     this.voiceMode = params.voiceMode ?? false;
     this.trackerEnabled = params.tracker ?? false;
@@ -3117,6 +3122,27 @@ export class Config implements McpContext, AgentLoopContext {
 
   getDisableLLMCorrection(): boolean {
     return this.disableLLMCorrection;
+  }
+
+  /**
+   * Whether writes/edits must be preceded by a read of the current file content.
+   * Can be overridden with the GEMINI_REQUIRE_READ_BEFORE_EDIT environment
+   * variable (set to `0` or `false` to disable).
+   */
+  isReadBeforeEditRequired(): boolean {
+    const env = process.env['GEMINI_REQUIRE_READ_BEFORE_EDIT'];
+    if (env !== undefined) {
+      const normalized = env.trim().toLowerCase();
+      return (
+        normalized !== '0' && normalized !== 'false' && normalized !== 'off'
+      );
+    }
+    return this.requireReadBeforeEdit;
+  }
+
+  /** Session-scoped registry of files the model has read or written. */
+  getFileReadState(): FileReadStateTracker {
+    return this.fileReadState;
   }
 
   isPlanEnabled(): boolean {

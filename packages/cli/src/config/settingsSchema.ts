@@ -1770,6 +1770,21 @@ const SETTINGS_SCHEMA = {
         `,
         showInDialog: true,
       },
+      requireReadBeforeEdit: {
+        type: 'boolean',
+        label: 'Require Read Before Edit',
+        category: 'Tools',
+        requiresRestart: true,
+        default: true,
+        description: oneLine`
+          Require the model to read a file's current content before it is
+          allowed to write or edit it. Blocks writes based on content that was
+          never read or that changed on disk since it was last read.
+          Can also be controlled with the GEMINI_REQUIRE_READ_BEFORE_EDIT
+          environment variable.
+        `,
+        showInDialog: true,
+      },
     },
   },
 

@@ -28,6 +28,7 @@ import {
 } from './tools.js';
 import { buildFilePathArgsPattern } from '../policy/utils.js';
 import { ToolErrorType } from './tool-error.js';
+import { enforceReadBeforeEdit } from './read-before-edit.js';
 import {
   makeRelative,
   shortenPath,
@@ -421,6 +422,18 @@ class WriteFileToolInvocation extends BaseToolInvocation<
     if (abortSignal.aborted) {
       throw new Error('Write aborted');
     }
+
+    // Hard-fail if the model has not read the current file content, or if the
+    // file changed on disk since it was last read. Creating a brand new file is
+    // always allowed.
+    const readGuard = await enforceReadBeforeEdit(
+      this.config,
+      this.resolvedPath,
+    );
+    if (readGuard) {
+      return readGuard;
+    }
+
     const { content, ai_proposed_content, modified_by_user } = this.params;
     const correctedContentResult = await getCorrectedFileContent(
       this.config,
@@ -477,6 +490,12 @@ class WriteFileToolInvocation extends BaseToolInvocation<
       await this.config
         .getFileSystemService()
         .writeTextFile(this.resolvedPath, finalContent);
+
+      // The file now matches what the agent just wrote; keep the read state
+      // fresh so it does not need to re-read before a follow-up edit.
+      await this.config
+        .getFileReadState?.()
+        ?.recordWrite(this.resolvedPath, finalContent, 'write');
 
       if (isBuildFile(this.resolvedPath)) {
         recordModifiedBuildFile(this.resolvedPath, this.config);

@@ -64,6 +64,7 @@ import {
 } from '../test-utils/mock-message-bus.js';
 import path from 'node:path';
 import { isSubpath, resolveToRealPath } from '../utils/paths.js';
+import { FileReadStateTracker } from '../utils/fileReadState.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import { ApprovalMode } from '../policy/types.js';
@@ -81,9 +82,13 @@ describe('EditTool', () => {
   let geminiClient: any;
   let fileSystemService: StandardFileSystemService;
   let baseLlmClient: BaseLlmClient;
+  let fileReadState: FileReadStateTracker;
+  const mockIsReadBeforeEditRequired = vi.fn(() => false);
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    fileReadState = new FileReadStateTracker();
+    mockIsReadBeforeEditRequired.mockReturnValue(false);
     const rawTempDir = fs.mkdtempSync(
       path.join(os.tmpdir(), 'edit-tool-test-'),
     );
@@ -134,6 +139,8 @@ describe('EditTool', () => {
       getToolRegistry: () => ({}) as any,
       isInteractive: () => false,
       getDisableLLMCorrection: vi.fn(() => true),
+      isReadBeforeEditRequired: mockIsReadBeforeEditRequired,
+      getFileReadState: () => fileReadState,
       getExperiments: () => {},
       isPlanMode: vi.fn(() => false),
       storage: {
@@ -1590,6 +1597,58 @@ function doIt() {
 
       await expect(p2).rejects.toThrow('Edit aborted');
       await p1;
+    });
+  });
+
+  describe('read-before-edit guard', () => {
+    const abortSignal = new AbortController().signal;
+
+    beforeEach(() => {
+      mockIsReadBeforeEditRequired.mockReturnValue(true);
+    });
+
+    it('blocks editing an existing file that was never read', async () => {
+      const filePath = path.join(rootDir, 'guard-unread.ts');
+      fs.writeFileSync(filePath, 'const a = 1;\n', 'utf8');
+      const invocation = tool.build({
+        file_path: filePath,
+        instruction: 'change',
+        old_string: 'const a = 1;',
+        new_string: 'const a = 2;',
+      });
+      const result = await invocation.execute({ abortSignal });
+      expect(result.error?.type).toBe(ToolErrorType.FILE_NOT_READ);
+      expect(fs.readFileSync(filePath, 'utf8')).toBe('const a = 1;\n');
+    });
+
+    it('allows editing after the file was read', async () => {
+      const filePath = path.join(rootDir, 'guard-read.ts');
+      fs.writeFileSync(filePath, 'const a = 1;\n', 'utf8');
+      await fileReadState.recordRead(filePath, 'const a = 1;\n');
+      const invocation = tool.build({
+        file_path: filePath,
+        instruction: 'change',
+        old_string: 'const a = 1;',
+        new_string: 'const a = 2;',
+      });
+      const result = await invocation.execute({ abortSignal });
+      expect(result.error).toBeUndefined();
+      expect(fs.readFileSync(filePath, 'utf8')).toBe('const a = 2;\n');
+    });
+
+    it('blocks editing a file modified since it was read', async () => {
+      const filePath = path.join(rootDir, 'guard-stale.ts');
+      fs.writeFileSync(filePath, 'v1', 'utf8');
+      await fileReadState.recordRead(filePath, 'v1');
+      fs.writeFileSync(filePath, 'v1 changed', 'utf8');
+      const invocation = tool.build({
+        file_path: filePath,
+        instruction: 'change',
+        old_string: 'v1',
+        new_string: 'v2',
+      });
+      const result = await invocation.execute({ abortSignal });
+      expect(result.error?.type).toBe(ToolErrorType.FILE_STALE);
     });
   });
 });
