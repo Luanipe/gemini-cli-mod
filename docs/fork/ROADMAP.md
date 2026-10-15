@@ -46,12 +46,21 @@ A task is `DONE` only when all of the following hold:
 - **PRs:** one PR per component where possible, targeting `main`, referencing
   the issue(s) it closes.
 - **Labels:** `fork:anti-hallucination`, `fork:harness`, `fork:yolo`,
-  `fork:few-shot`.
+  `fork:few-shot`, `fork:dx`.
 
 ## Components
 
 Status is updated as work lands. "Evidence" points to the commit/PR that
 delivered the item.
+
+### DX / AI-driven development
+
+Our development harness (OpenCode): canonical instructions plus the subagents
+and commands used to review and audit our work.
+
+| ID   | Item                                                       | Status | Issue | Branch              | PR  | Evidence |
+| ---- | ---------------------------------------------------------- | ------ | ----- | ------------------- | --- | -------- |
+| DX-1 | `AGENTS.md` + OpenCode review/audit subagents and commands | DONE   | #13   | `feat/dx-ai-driven` | —   | —        |
 
 ### Anti-hallucination
 
