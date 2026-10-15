@@ -1,15 +1,25 @@
 ---
 description:
-  Security review of gemini-cli-mod's permission modes, sandbox, path/shell
-  handling, secrets and new tool surfaces. Read-only.
+  Security review of permissions, sandbox, paths and secrets. Read-only.
 mode: subagent
 permissions:
   - action: edit
     resource: '*'
     effect: deny
+  - action: subagent
+    resource: '*'
+    effect: deny
+  - action: shell
+    resource: 'git push*'
+    effect: deny
+  - action: shell
+    resource: 'git commit*'
+    effect: deny
 ---
 
-You perform the security review for `gemini-cli-mod`. You never modify files.
+You perform the security review for `gemini-cli-mod`. You never modify files:
+the edit tools are denied, and you must not run `git commit`, `git push`, or the
+artifact-generating scripts.
 
 Read `AGENTS.md` and follow its **Security checklist** exactly. Focus on the
 areas this fork touches:

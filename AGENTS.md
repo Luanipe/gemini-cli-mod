@@ -37,7 +37,9 @@ one.
 2. **Stay compatible with upstream.** Keep existing tests green and avoid
    breaking public behavior unless the task explicitly says so.
 3. **One task per branch/PR.** Branch `feat/<component>-<task>`, Conventional
-   Commits, and reference the GitHub issue.
+   Commits, and reference the GitHub issue. Stacked PRs are allowed: base a
+   follow-up branch on the parent branch and retarget it to `main` once the
+   parent merges.
 4. **Meet the Definition of Done** before marking anything done.
 5. **Record hard-to-reverse decisions** as an ADR in `docs/fork/decisions/`.
 6. **License headers.** New source files (`.ts`, `.tsx`, `.js`) need the
@@ -58,6 +60,9 @@ A task is done only when all of these hold:
 5. Behavior-affecting changes are covered by an eval when practical.
 6. The `docs/fork/ROADMAP.md` row (status, branch, PR, evidence) is updated.
 
+Status values follow the roadmap legend. A task that is implemented and pushed
+but not yet merged is `REVIEW`, not `DONE`.
+
 ## Commands (gates)
 
 ```bash
@@ -65,12 +70,26 @@ npm run test:core:local                              # core suite, skips env-dep
 npm run typecheck --workspace @google/gemini-cli-core
 npm run typecheck --workspace @google/gemini-cli
 npx eslint <changed files>
-npx tsx ./scripts/generate-settings-schema.ts        # only when settings change
-npx tsx ./scripts/generate-settings-doc.ts           # only when settings change
+npx tsx ./scripts/generate-settings-schema.ts        # only when settings change (writes files)
+npx tsx ./scripts/generate-settings-doc.ts           # only when settings change (writes files)
 ```
 
-`npm run test:memory` and `npm run test:perf` are nightly-only; run them locally
-only when the change touches those areas.
+Notes:
+
+- `npm run test:memory` and `npm run test:perf` are nightly-only; run them
+  locally only when the change touches those areas.
+- Markdown/config-only changes are validated by the pre-commit `prettier` hook;
+  `eslint` only applies to JS/TS sources, so an "ignored" result is expected.
+- The two `generate-*` scripts write files. Run them in your normal session, not
+  from a read-only subagent (see below).
+
+## Subagents and read-only
+
+The `.opencode/agents/` subagents are **read-only with respect to the edit
+tools**: `edit` is denied. `shell` stays available so they can inspect `git`
+state and run the gates, but they must **not** modify the repository: never run
+`git commit`, `git push`, or the artifact-generating scripts. If an artifact
+needs regeneration, report it instead of doing it.
 
 ## Workflow
 
@@ -90,8 +109,10 @@ commit. Check, in order:
 2. **Consistency** with `docs/fork/ROADMAP.md`, the issue's acceptance criteria,
    and any relevant ADR in `docs/fork/decisions/`.
 3. **Tests**: new behavior is covered; assertions are meaningful; no flaky or
-   environment-dependent assumptions.
-4. **Gates**: run them and report the results (including expected skips).
+   environment-dependent assumptions. Docs/config-only changes may skip the full
+   test run; say so explicitly.
+4. **Gates**: run the applicable gates and report the results (including
+   expected skips). Do not run artifact-generating scripts.
 5. **Quality**: types, error handling, naming, dead code, and no stray debug
    output.
 
@@ -101,7 +122,8 @@ CHANGES.
 
 ## Audit checklist (used by the `auditor` subagent)
 
-Audit the project as a whole and report findings with severity and evidence:
+Audit the project as a whole and report findings with severity
+(**Critical/High/Medium/Low**) and evidence:
 
 1. **Licensing/porting compliance**: no code copied from `openclaude`; patterns
    reimplemented against the Apache-2.0 upstream.
@@ -118,7 +140,7 @@ Audit the project as a whole and report findings with severity and evidence:
 ## Security checklist (used by the `security-auditor` subagent)
 
 Focus on the areas this fork touches; report severity
-(Critical/High/Medium/Low), `file:line`, and remediation:
+(**Critical/High/Medium/Low**), `file:line`, and remediation:
 
 1. **Permissions/approval modes** (YOLO, bypass, plan): no unintended allows;
    the most permissive modes keep their safety checks and killswitches.

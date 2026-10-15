@@ -44,14 +44,18 @@ A task is `DONE` only when all of the following hold:
   `feat/anti-hallucination-post-compact-reinjection`).
 - **Commits:** Conventional Commits (the repository already enforces this).
 - **PRs:** one PR per component where possible, targeting `main`, referencing
-  the issue(s) it closes.
+  the issue(s) it closes. Stacked PRs are allowed: base the follow-up branch on
+  the parent branch and retarget it to `main` once the parent merges.
 - **Labels:** `fork:anti-hallucination`, `fork:harness`, `fork:yolo`,
   `fork:few-shot`, `fork:dx`.
 
 ## Components
 
+**Current focus:** Anti-hallucination (AH) — finish AH-2 and AH-3.
+
 Status is updated as work lands. "Evidence" points to the commit/PR that
-delivered the item.
+delivered the item. Per the legend, `DONE` means **merged**; implemented and
+pushed but unmerged is `REVIEW`.
 
 ### DX / AI-driven development
 
@@ -60,7 +64,7 @@ and commands used to review and audit our work.
 
 | ID   | Item                                                       | Status | Issue | Branch              | PR  | Evidence    |
 | ---- | ---------------------------------------------------------- | ------ | ----- | ------------------- | --- | ----------- |
-| DX-1 | `AGENTS.md` + OpenCode review/audit subagents and commands | DONE   | #13   | `feat/dx-ai-driven` | #14 | `114e2bcd6` |
+| DX-1 | `AGENTS.md` + OpenCode review/audit subagents and commands | REVIEW | #13   | `feat/dx-ai-driven` | #14 | `114e2bcd6` |
 
 ### Anti-hallucination
 
@@ -69,7 +73,7 @@ silently dropped from the window.
 
 | ID   | Item                                                    | Status | Issue | Branch                  | PR  | Evidence    |
 | ---- | ------------------------------------------------------- | ------ | ----- | ----------------------- | --- | ----------- |
-| AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | #1    | `feat/read-before-edit` | #12 | `8754ff17d` |
+| AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | REVIEW | #1    | `feat/read-before-edit` | #12 | `8754ff17d` |
 | AH-2 | Compaction circuit breaker + cooldown                   | TODO   | #2    |                         |     |             |
 | AH-3 | Post-compact re-injection of recently touched files     | TODO   | #3    |                         |     |             |
 
