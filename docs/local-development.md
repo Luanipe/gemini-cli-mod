@@ -3,6 +3,45 @@
 This guide provides instructions for setting up and using local development
 features for Gemini CLI.
 
+## Running the core test suite locally
+
+The `@google/gemini-cli-core` package ships two test suites that depend on
+system services which are commonly unavailable on a developer machine or a
+minimal container:
+
+| Suite                                             | Requires                                                                       | Failure when missing                 |
+| ------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------ |
+| `src/services/sandboxManager.integration.test.ts` | [`bubblewrap`](https://github.com/containers/bubblewrap) (`bwrap`) on Linux    | `bwrap: not found`                   |
+| `src/services/keychainService.test.ts`            | native `libsecret` (`libsecret-1.so.0`) so `@github/keytar` can load its addon | `Failed to load keytar native addon` |
+
+To keep the local loop fast and green, run:
+
+```bash
+npm run test:core:local
+```
+
+This runs the same suite as `npm test --workspace @google/gemini-cli-core` but
+excludes the two suites above via `--exclude`. CI runs the full suite in an
+environment where these system dependencies are present.
+
+### What this does not affect
+
+- **Build:** `npm run build` compiles sources only and never runs these tests.
+- **Runtime sandboxing:** sandboxing is opt-in (`tools.sandbox` / `--sandbox`,
+  disabled by default). Without `bwrap`, the unsandboxed developer flow is
+  unaffected. Install `bubblewrap` only if you want to exercise sandboxing.
+- **Runtime secure storage:** `KeychainService` automatically falls back to an
+  encrypted file store (`FileKeychain`) when the native keychain is unavailable,
+  so the CLI works without `libsecret`. Set `GEMINI_FORCE_FILE_STORAGE=true` to
+  select the file store explicitly.
+
+To make the full suite pass on a Linux workstation:
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install bubblewrap libsecret-1-0
+```
+
 ## Tracing
 
 Gemini CLI uses OpenTelemetry (OTel) to record traces that help you debug agent
