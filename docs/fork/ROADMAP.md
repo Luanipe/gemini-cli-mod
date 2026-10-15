@@ -58,40 +58,40 @@ delivered the item.
 Reduce the model acting on context that is stale, was never read, or was
 silently dropped from the window.
 
-| ID   | Item                                                    | Status | Branch                  | PR  | Evidence    |
-| ---- | ------------------------------------------------------- | ------ | ----------------------- | --- | ----------- |
-| AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | `feat/read-before-edit` | —   | `8754ff17d` |
-| AH-2 | Compaction circuit breaker + cooldown                   | TODO   |                         |     |             |
-| AH-3 | Post-compact re-injection of recently touched files     | TODO   |                         |     |             |
+| ID   | Item                                                    | Status | Issue | Branch                  | PR  | Evidence    |
+| ---- | ------------------------------------------------------- | ------ | ----- | ----------------------- | --- | ----------- |
+| AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | #1    | `feat/read-before-edit` | #12 | `8754ff17d` |
+| AH-2 | Compaction circuit breaker + cooldown                   | TODO   | #2    |                         |     |             |
+| AH-3 | Post-compact re-injection of recently touched files     | TODO   | #3    |                         |     |             |
 
 ### Harness
 
 Improve the agent loop, tool orchestration, and robustness.
 
-| ID  | Item                                                       | Status | Branch | PR  | Evidence |
-| --- | ---------------------------------------------------------- | ------ | ------ | --- | -------- |
-| H-1 | Streaming tool execution (run tools as `tool_use` streams) | TODO   |        |     |          |
-| H-2 | Unify the subagent loop with the main loop                 | TODO   |        |     |          |
-| H-3 | Typed turn transitions + continuation/doom-loop guards     | TODO   |        |     |          |
+| ID  | Item                                                       | Status | Issue | Branch | PR  | Evidence |
+| --- | ---------------------------------------------------------- | ------ | ----- | ------ | --- | -------- |
+| H-1 | Streaming tool execution (run tools as `tool_use` streams) | TODO   | #4    |        |     |          |
+| H-2 | Unify the subagent loop with the main loop                 | TODO   | #5    |        |     |          |
+| H-3 | Typed turn transitions + continuation/doom-loop guards     | TODO   | #6    |        |     |          |
 
 ### YOLO / acceptances
 
 Improve the approval model and permissive modes.
 
-| ID  | Item                                                           | Status | Branch | PR  | Evidence |
-| --- | -------------------------------------------------------------- | ------ | ------ | --- | -------- |
-| Y-1 | `dontAsk` mode (ask → deny, for CI/headless)                   | TODO   |        |     |          |
-| Y-2 | Two danger tiers (`bypass` still honors safety checks; `full`) | TODO   |        |     |          |
-| Y-3 | LLM auto-mode classifier with circuit breaker + denial limits  | TODO   |        |     |          |
+| ID  | Item                                                           | Status | Issue | Branch | PR  | Evidence |
+| --- | -------------------------------------------------------------- | ------ | ----- | ------ | --- | -------- |
+| Y-1 | `dontAsk` mode (ask → deny, for CI/headless)                   | TODO   | #7    |        |     |          |
+| Y-2 | Two danger tiers (`bypass` still honors safety checks; `full`) | TODO   | #8    |        |     |          |
+| Y-3 | LLM auto-mode classifier with circuit breaker + denial limits  | TODO   | #9    |        |     |          |
 
 ### Few-shot prompting
 
 Improve tool-calling reliability.
 
-| ID  | Item                                                     | Status | Branch | PR  | Evidence |
-| --- | -------------------------------------------------------- | ------ | ------ | --- | -------- |
-| F-1 | Concrete few-shot examples in high-error tool prompts    | TODO   |        |     |          |
-| F-2 | Enable `PromptConfig.initialMessages` in built-in agents | TODO   |        |     |          |
+| ID  | Item                                                     | Status | Issue | Branch | PR  | Evidence |
+| --- | -------------------------------------------------------- | ------ | ----- | ------ | --- | -------- |
+| F-1 | Concrete few-shot examples in high-error tool prompts    | TODO   | #10   |        |     |          |
+| F-2 | Enable `PromptConfig.initialMessages` in built-in agents | TODO   | #11   |        |     |          |
 
 ## Decision records
 
