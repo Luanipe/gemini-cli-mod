@@ -1,6 +1,5 @@
 ---
-description:
-  Security review of permissions, sandbox, paths and secrets. Read-only.
+description: Security review: permissions, sandbox, paths, secrets.
 mode: subagent
 permissions:
   - action: edit
@@ -14,6 +13,9 @@ permissions:
     effect: deny
   - action: shell
     resource: 'git commit*'
+    effect: deny
+  - action: shell
+    resource: '*generate-settings-*'
     effect: deny
 ---
 

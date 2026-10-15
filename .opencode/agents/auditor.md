@@ -1,6 +1,5 @@
 ---
-description:
-  Audits license/porting and roadmap/issue/code consistency. Read-only.
+description: Audit license/porting and roadmap/issue consistency.
 mode: subagent
 permissions:
   - action: edit
@@ -14,6 +13,9 @@ permissions:
     effect: deny
   - action: shell
     resource: 'git commit*'
+    effect: deny
+  - action: shell
+    resource: '*generate-settings-*'
     effect: deny
 ---
 

@@ -1,6 +1,5 @@
 ---
-description:
-  Reviews current changes against the repo's golden rules and DoD. Read-only.
+description: Review changes vs golden rules and DoD. Read-only.
 mode: subagent
 permissions:
   - action: edit
@@ -14,6 +13,9 @@ permissions:
     effect: deny
   - action: shell
     resource: 'git commit*'
+    effect: deny
+  - action: shell
+    resource: '*generate-settings-*'
     effect: deny
 ---
 
