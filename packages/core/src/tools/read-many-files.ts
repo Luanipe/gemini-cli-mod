@@ -390,6 +390,25 @@ ${finalExclusionPatternsForDescription
             contentParts.push(fileReadResult.llmContent);
           }
 
+          // Record that the model has seen this file's content, so later writes
+          // and edits can be validated against a known-good snapshot.
+          if (typeof fileReadResult.llmContent === 'string') {
+            let startLine: number | undefined;
+            let endLine: number | undefined;
+            if (fileReadResult.isTruncated && fileReadResult.linesShown) {
+              startLine = fileReadResult.linesShown[0];
+              endLine = fileReadResult.linesShown[1];
+            }
+            const readState = this.config.getFileReadState?.();
+            if (readState) {
+              await readState.recordRead(filePath, fileReadResult.llmContent, {
+                startLine,
+                endLine,
+                source: 'read_many_files',
+              });
+            }
+          }
+
           processedFilesRelativePaths.push(relativePathForDisplay);
 
           const lines =

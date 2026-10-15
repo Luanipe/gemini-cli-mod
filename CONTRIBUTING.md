@@ -282,6 +282,19 @@ This will run tests located in the `packages/core` and `packages/cli`
 directories. Ensure tests pass before submitting any changes. For a more
 comprehensive check, it is recommended to run `npm run preflight`.
 
+Two core suites depend on system services (`bubblewrap` for
+`sandboxManager.integration.test.ts`, native `libsecret` for
+`keychainService.test.ts`) and fail on machines or containers without them. For
+a local run that skips just those suites, use:
+
+```bash
+npm run test:core:local
+```
+
+These dependencies do not affect the build or normal runtime; see
+[Running the core test suite locally](https://geminicli.com/docs/local-development)
+for details and how to install them.
+
 #### Integration tests
 
 The integration tests are designed to validate the end-to-end functionality of

@@ -1896,9 +1896,18 @@ their corresponding top-level category object in your `settings.json` file.
   - **Requires restart:** Yes
 
 - **`tools.disableLLMCorrection`** (boolean):
+
   - **Description:** Disable LLM-based error correction for edit tools. When
     enabled, tools will fail immediately if exact string matches are not found,
     instead of attempting to self-correct.
+  - **Default:** `true`
+  - **Requires restart:** Yes
+
+- **`tools.requireReadBeforeEdit`** (boolean):
+  - **Description:** Require the model to read a file's current content before
+    it is allowed to write or edit it. Blocks writes based on content that was
+    never read or that changed on disk since it was last read. Can also be
+    controlled with the GEMINI_REQUIRE_READ_BEFORE_EDIT environment variable.
   - **Default:** `true`
   - **Requires restart:** Yes
 

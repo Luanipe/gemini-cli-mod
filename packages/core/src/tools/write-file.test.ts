@@ -31,6 +31,7 @@ import { ApprovalMode } from '../policy/types.js';
 import type { ToolRegistry } from './tool-registry.js';
 import path from 'node:path';
 import { isSubpath, resolveToRealPath } from '../utils/paths.js';
+import { FileReadStateTracker } from '../utils/fileReadState.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import { GeminiClient } from '../core/client.js';
@@ -58,6 +59,7 @@ vi.mock('../ide/ide-client.js', () => ({
 let mockGeminiClientInstance: Mocked<GeminiClient>;
 let mockBaseLlmClientInstance: Mocked<BaseLlmClient>;
 let mockConfig: Config;
+let fileReadState: FileReadStateTracker;
 const mockEnsureCorrectFileContent = vi.fn<typeof ensureCorrectFileContent>();
 const mockIdeClient = {
   openDiff: vi.fn(),
@@ -106,6 +108,8 @@ const mockConfigInternal = {
     }) as unknown as ToolRegistry,
   isInteractive: () => false,
   getDisableLLMCorrection: vi.fn(() => true),
+  isReadBeforeEditRequired: vi.fn(() => false),
+  getFileReadState: () => fileReadState,
   isPlanMode: vi.fn(() => false),
   getActiveModel: () => 'gemini-1.5-flash',
   storage: {
@@ -133,7 +137,11 @@ describe('WriteFileTool', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    fileReadState = new FileReadStateTracker();
     vi.mocked(mockConfigInternal.isPlanMode).mockReturnValue(false);
+    vi.mocked(mockConfigInternal.isReadBeforeEditRequired).mockReturnValue(
+      false,
+    );
     // Create a unique temporary directory for files created outside the root
     const rawTempDir = fs.mkdtempSync(
       path.join(os.tmpdir(), 'write-file-test-external-'),
@@ -1233,6 +1241,76 @@ describe('WriteFileTool', () => {
 
       await expect(p2).rejects.toThrow('Write aborted');
       await p1;
+    });
+  });
+
+  describe('read-before-edit guard', () => {
+    const abortSignal = new AbortController().signal;
+
+    beforeEach(() => {
+      vi.mocked(mockConfigInternal.isReadBeforeEditRequired).mockReturnValue(
+        true,
+      );
+    });
+
+    it('blocks overwriting an existing file that was never read', async () => {
+      const filePath = path.join(rootDir, 'guard_unread.txt');
+      fs.writeFileSync(filePath, 'existing content');
+      mockEnsureCorrectFileContent.mockResolvedValue('new content');
+
+      const invocation = tool.build({
+        file_path: filePath,
+        content: 'new content',
+      });
+      const result = await invocation.execute({ abortSignal });
+
+      expect(result.error?.type).toBe(ToolErrorType.FILE_NOT_READ);
+      // The file is left untouched.
+      expect(fs.readFileSync(filePath, 'utf8')).toBe('existing content');
+    });
+
+    it('allows overwriting after the file was read', async () => {
+      const filePath = path.join(rootDir, 'guard_read.txt');
+      fs.writeFileSync(filePath, 'existing content');
+      await fileReadState.recordRead(filePath, 'existing content');
+      mockEnsureCorrectFileContent.mockResolvedValue('new content');
+
+      const invocation = tool.build({
+        file_path: filePath,
+        content: 'new content',
+      });
+      const result = await invocation.execute({ abortSignal });
+
+      expect(result.error).toBeUndefined();
+      expect(fs.readFileSync(filePath, 'utf8')).toBe('new content');
+    });
+
+    it('blocks overwriting a file modified since it was read', async () => {
+      const filePath = path.join(rootDir, 'guard_stale.txt');
+      fs.writeFileSync(filePath, 'v1');
+      await fileReadState.recordRead(filePath, 'v1');
+      fs.writeFileSync(filePath, 'v2');
+      mockEnsureCorrectFileContent.mockResolvedValue('v3');
+
+      const invocation = tool.build({ file_path: filePath, content: 'v3' });
+      const result = await invocation.execute({ abortSignal });
+
+      expect(result.error?.type).toBe(ToolErrorType.FILE_STALE);
+      expect(fs.readFileSync(filePath, 'utf8')).toBe('v2');
+    });
+
+    it('always allows creating a brand new file', async () => {
+      const filePath = path.join(rootDir, 'guard_new.txt');
+      mockEnsureCorrectFileContent.mockResolvedValue('brand new');
+
+      const invocation = tool.build({
+        file_path: filePath,
+        content: 'brand new',
+      });
+      const result = await invocation.execute({ abortSignal });
+
+      expect(result.error).toBeUndefined();
+      expect(fs.readFileSync(filePath, 'utf8')).toBe('brand new');
     });
   });
 });

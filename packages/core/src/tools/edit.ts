@@ -27,6 +27,7 @@ import {
 import { buildFilePathArgsPattern } from '../policy/utils.js';
 import type { MessageBus } from '../confirmation-bus/message-bus.js';
 import { ToolErrorType } from './tool-error.js';
+import { enforceReadBeforeEdit } from './read-before-edit.js';
 import {
   makeRelative,
   shortenPath,
@@ -952,6 +953,17 @@ class EditToolInvocation
     if (signal.aborted) {
       throw new Error('Edit aborted');
     }
+
+    // Hard-fail if the model has not read the current file content, or if the
+    // file changed on disk since it was last read.
+    const readGuard = await enforceReadBeforeEdit(
+      this.config,
+      this.resolvedPath,
+    );
+    if (readGuard) {
+      return readGuard;
+    }
+
     let editData: CalculatedEdit;
     try {
       editData = await this.calculateEdit(this.params, signal);
@@ -996,6 +1008,12 @@ class EditToolInvocation
       await this.config
         .getFileSystemService()
         .writeTextFile(this.resolvedPath, finalContent);
+
+      // The file now matches what the agent just wrote; keep the read state
+      // fresh so it does not need to re-read before a follow-up edit.
+      await this.config
+        .getFileReadState?.()
+        ?.recordWrite(this.resolvedPath, finalContent, 'edit');
 
       if (isBuildFile(this.resolvedPath)) {
         recordModifiedBuildFile(this.resolvedPath, this.config);

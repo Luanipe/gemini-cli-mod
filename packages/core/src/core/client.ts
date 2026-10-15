@@ -1278,6 +1278,16 @@ export class GeminiClient {
       }
     }
 
+    if (
+      info.compressionStatus === CompressionStatus.COMPRESSED ||
+      info.compressionStatus === CompressionStatus.CONTENT_TRUNCATED
+    ) {
+      // History was rewritten or truncated, so verbatim file content the model
+      // previously read can no longer be assumed to be in context. Mark the
+      // records so their content can be re-injected after compaction.
+      this.config.getFileReadState?.()?.markAllMasked();
+    }
+
     return info;
   }
 
