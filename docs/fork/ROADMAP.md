@@ -114,3 +114,5 @@ Decisions that are hard to reverse or that need context are recorded as ADRs in
 - [ADR-0000](./decisions/ADR-0000-template.md) — template.
 - [ADR-0001](./decisions/ADR-0001-read-before-edit-hard-fail.md) —
   read-before-edit enforcement is a hard failure.
+- [ADR-0002](./decisions/ADR-0002-post-compact-reinjection.md) — post-compaction
+  re-injection of recently touched files.

@@ -16,6 +16,10 @@ import type {
   ContextManagementConfig,
   ToolOutputMaskingConfig,
 } from '../context/types.js';
+import {
+  DEFAULT_RECENT_FILE_REINJECTION,
+  type RecentFileReinjectionSettings,
+} from '../context/recentFileReinjection.js';
 export type { ConversationRecord };
 import {
   AuthType,
@@ -669,6 +673,7 @@ export interface ConfigParameters {
   includeDirectoryTree?: boolean;
   importFormat?: 'tree' | 'flat';
   discoveryMaxDirs?: number;
+  recentFileReinjection?: Partial<RecentFileReinjectionSettings>;
   compressionThreshold?: number;
   interactive?: boolean;
   trustedFolder?: boolean;
@@ -984,6 +989,7 @@ export class Config implements McpContext, AgentLoopContext {
   private readonly topicUpdateNarration: boolean;
   private readonly disableLLMCorrection: boolean;
   private readonly requireReadBeforeEdit: boolean;
+  private readonly recentFileReinjection: RecentFileReinjectionSettings;
   private readonly fileReadState = new FileReadStateTracker();
   private readonly planEnabled: boolean;
   private readonly voiceMode: boolean;
@@ -1146,6 +1152,10 @@ export class Config implements McpContext, AgentLoopContext {
     this.agents = params.agents ?? {};
     this.disableLLMCorrection = params.disableLLMCorrection ?? true;
     this.requireReadBeforeEdit = params.requireReadBeforeEdit ?? true;
+    this.recentFileReinjection = {
+      ...DEFAULT_RECENT_FILE_REINJECTION,
+      ...(params.recentFileReinjection ?? {}),
+    };
     this.planEnabled = params.plan ?? true;
     this.voiceMode = params.voiceMode ?? false;
     this.trackerEnabled = params.tracker ?? false;
@@ -3143,6 +3153,14 @@ export class Config implements McpContext, AgentLoopContext {
   /** Session-scoped registry of files the model has read or written. */
   getFileReadState(): FileReadStateTracker {
     return this.fileReadState;
+  }
+
+  /**
+   * Budgets for re-injecting recently touched files after chat compaction
+   * (AH-3).
+   */
+  getRecentFileReinjection(): RecentFileReinjectionSettings {
+    return this.recentFileReinjection;
   }
 
   isPlanEnabled(): boolean {

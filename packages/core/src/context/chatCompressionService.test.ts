@@ -19,6 +19,8 @@ import type { GeminiChat } from '../core/geminiChat.js';
 import type { Config } from '../config/config.js';
 import * as fileUtils from '../utils/fileUtils.js';
 import { getInitialChatHistory } from '../utils/environmentContext.js';
+import { FileReadStateTracker } from '../utils/fileReadState.js';
+import { DEFAULT_RECENT_FILE_REINJECTION } from './recentFileReinjection.js';
 
 const { TOOL_OUTPUTS_DIR } = fileUtils;
 import * as tokenCalculation from '../utils/tokenCalculation.js';
@@ -154,6 +156,7 @@ describe('ChatCompressionService', () => {
   let mockChat: GeminiChat;
   let mockConfig: Config;
   let testTempDir: string;
+  let fileReadState: FileReadStateTracker;
   const mockModel = 'gemini-2.5-pro';
   const mockPromptId = 'test-prompt-id';
 
@@ -161,6 +164,7 @@ describe('ChatCompressionService', () => {
     testTempDir = fs.mkdtempSync(
       path.join(os.tmpdir(), 'chat-compression-test-'),
     );
+    fileReadState = new FileReadStateTracker();
     service = new ChatCompressionService();
     mockChat = {
       getHistory: vi.fn(),
@@ -210,6 +214,10 @@ describe('ChatCompressionService', () => {
         getProjectTempDir: vi.fn().mockReturnValue(testTempDir),
       },
       getApprovedPlanPath: vi.fn().mockReturnValue('/path/to/plan.md'),
+      getFileReadState: vi.fn().mockReturnValue(fileReadState),
+      getRecentFileReinjection: vi
+        .fn()
+        .mockReturnValue({ ...DEFAULT_RECENT_FILE_REINJECTION }),
     } as unknown as Config;
 
     vi.mocked(getInitialChatHistory).mockImplementation(
@@ -1392,6 +1400,225 @@ describe('ChatCompressionService', () => {
       expect(turn2Content).toBe(fileB);
       expect(turn1Content).not.toContain('[Tool output collapsed');
       expect(turn2Content).not.toContain('[Tool output collapsed');
+    });
+  });
+
+  describe('recent file re-injection (AH-3)', () => {
+    function writeTrackedFile(name: string, content: string): string {
+      const filePath = path.join(testTempDir, name);
+      fs.writeFileSync(filePath, content);
+      return filePath;
+    }
+
+    it('re-injects a recently touched file after COMPRESSED', async () => {
+      const content = 'export const recent = 1;';
+      const filePath = writeTrackedFile('recent.ts', content);
+      await fileReadState.recordRead(filePath, content);
+
+      vi.mocked(mockChat.getHistory).mockReturnValue([
+        { role: 'user', parts: [{ text: 'msg1' }] },
+        { role: 'model', parts: [{ text: 'msg2' }] },
+        { role: 'user', parts: [{ text: 'msg3' }] },
+        { role: 'model', parts: [{ text: 'msg4' }] },
+      ]);
+      vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(600000);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        false,
+      );
+
+      expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
+      const firstTurn = result.newHistory![0];
+      expect(firstTurn.parts![0].text).toContain('<recently_referenced_files>');
+      expect(firstTurn.parts![0].text).toContain(content);
+    });
+
+    it('drops re-injection when it would inflate the compressed history', async () => {
+      const content = 'x'.repeat(5000);
+      const filePath = writeTrackedFile('huge.ts', content);
+      await fileReadState.recordRead(filePath, content);
+
+      vi.mocked(mockChat.getHistory).mockReturnValue([
+        { role: 'user', parts: [{ text: 'msg1' }] },
+        { role: 'model', parts: [{ text: 'msg2' }] },
+        { role: 'user', parts: [{ text: 'msg3' }] },
+        { role: 'model', parts: [{ text: 'msg4' }] },
+      ]);
+      vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(600);
+      vi.mocked(tokenLimit).mockReturnValue(1000);
+      vi.mocked(mockConfig.getCompressionThreshold).mockResolvedValue(0.5);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        false,
+      );
+
+      expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
+      expect(JSON.stringify(result.newHistory)).not.toContain(
+        '<recently_referenced_files>',
+      );
+    });
+
+    it('does not re-inject when the setting is disabled', async () => {
+      const content = 'export const disabled = 1;';
+      const filePath = writeTrackedFile('disabled.ts', content);
+      await fileReadState.recordRead(filePath, content);
+      vi.mocked(mockConfig.getRecentFileReinjection).mockReturnValue({
+        ...DEFAULT_RECENT_FILE_REINJECTION,
+        enabled: false,
+      });
+
+      vi.mocked(mockChat.getHistory).mockReturnValue([
+        { role: 'user', parts: [{ text: 'msg1' }] },
+        { role: 'model', parts: [{ text: 'msg2' }] },
+        { role: 'user', parts: [{ text: 'msg3' }] },
+        { role: 'model', parts: [{ text: 'msg4' }] },
+      ]);
+      vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(600000);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        false,
+      );
+
+      expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
+      const serialized = JSON.stringify(result.newHistory);
+      expect(serialized).not.toContain('<recently_referenced_files>');
+    });
+
+    it('skips a file whose content is still verbatim in the preserved tail', async () => {
+      const content = 'export const present = 1;';
+      const filePath = writeTrackedFile('present.ts', content);
+      await fileReadState.recordRead(filePath, content);
+
+      vi.mocked(mockChat.getHistory).mockReturnValue([
+        { role: 'user', parts: [{ text: 'A'.repeat(1000) }] },
+        { role: 'model', parts: [{ text: 'B'.repeat(100) }] },
+        { role: 'user', parts: [{ text: 'C'.repeat(100) }] },
+        { role: 'model', parts: [{ text: 'D'.repeat(100) }] },
+        {
+          role: 'user',
+          parts: [
+            {
+              functionResponse: {
+                name: 'read_file',
+                response: { output: content },
+              },
+            },
+          ],
+        },
+      ]);
+      vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(600000);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        false,
+      );
+
+      expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
+      expect(JSON.stringify(result.newHistory)).not.toContain(
+        '<recently_referenced_files>',
+      );
+    });
+
+    it('re-injects after masking removed the content from the tail', async () => {
+      const content = 'export const masked = 1;';
+      const filePath = writeTrackedFile('masked.ts', content);
+      await fileReadState.recordRead(filePath, content);
+
+      vi.mocked(mockChat.getHistory).mockReturnValue([
+        { role: 'user', parts: [{ text: 'A'.repeat(1000) }] },
+        { role: 'model', parts: [{ text: 'B'.repeat(100) }] },
+        { role: 'user', parts: [{ text: 'C'.repeat(100) }] },
+        { role: 'model', parts: [{ text: 'D'.repeat(100) }] },
+        {
+          role: 'user',
+          parts: [
+            {
+              functionResponse: {
+                name: 'read_file',
+                response: {
+                  output:
+                    '<tool_output_masked>[truncated]</tool_output_masked>',
+                },
+              },
+            },
+          ],
+        },
+      ]);
+      vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(600000);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        false,
+      );
+
+      expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
+      expect(JSON.stringify(result.newHistory)).toContain(
+        '<recently_referenced_files>',
+      );
+      expect(JSON.stringify(result.newHistory)).toContain(content);
+    });
+
+    it('re-injects after CONTENT_TRUNCATED, placed after the environment context', async () => {
+      const content = 'export const truncated = 1;';
+      const filePath = writeTrackedFile('truncated.ts', content);
+      await fileReadState.recordRead(filePath, content);
+
+      const largeResponse = 'a'.repeat(170000);
+      vi.mocked(mockChat.getHistory).mockReturnValue([
+        { role: 'user', parts: [{ text: 'old msg' }] },
+        { role: 'model', parts: [{ text: 'old resp' }] },
+        {
+          role: 'user',
+          parts: [
+            {
+              functionResponse: {
+                name: 'grep',
+                response: { content: largeResponse },
+              },
+            },
+          ],
+        },
+      ]);
+      vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(600000);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        true,
+      );
+
+      expect(result.info.compressionStatus).toBe(
+        CompressionStatus.CONTENT_TRUNCATED,
+      );
+      const firstTurn = result.newHistory![0];
+      expect(firstTurn.parts![0].text).toContain('<recently_referenced_files>');
+      expect(firstTurn.parts![0].text).toContain(content);
     });
   });
 });
