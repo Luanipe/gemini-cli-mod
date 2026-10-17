@@ -58,11 +58,11 @@ delivered the item.
 Reduce the model acting on context that is stale, was never read, or was
 silently dropped from the window.
 
-| ID   | Item                                                    | Status | Issue | Branch                  | PR  | Evidence    |
-| ---- | ------------------------------------------------------- | ------ | ----- | ----------------------- | --- | ----------- |
-| AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | #1    | `feat/read-before-edit` | #12 | `8754ff17d` |
-| AH-2 | Compaction circuit breaker + cooldown                   | TODO   | #2    |                         |     |             |
-| AH-3 | Post-compact re-injection of recently touched files     | TODO   | #3    |                         |     |             |
+| ID   | Item                                                    | Status | Issue | Branch                                               | PR  | Evidence    |
+| ---- | ------------------------------------------------------- | ------ | ----- | ---------------------------------------------------- | --- | ----------- |
+| AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | #1    | `feat/read-before-edit`                              | #12 | `8754ff17d` |
+| AH-2 | Compaction circuit breaker + cooldown                   | REVIEW | #2    | `feat/anti-hallucination-compaction-circuit-breaker` | #15 | `adc8511ed` |
+| AH-3 | Post-compact re-injection of recently touched files     | TODO   | #3    |                                                      |     |             |
 
 ### Harness
 
