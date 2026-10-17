@@ -17,13 +17,14 @@ Everything here is written against the Apache-2.0 upstream.
 
 ## Status legend
 
-| Status    | Meaning                                            |
-| --------- | -------------------------------------------------- |
-| `TODO`    | Planned, not started.                              |
-| `WIP`     | In progress on a feature branch.                   |
-| `REVIEW`  | Implemented, under review / validating.            |
-| `DONE`    | Merged, gates green, docs updated.                 |
-| `DROPPED` | Considered and rejected (see ADRs for the reason). |
+| Status     | Meaning                                            |
+| ---------- | -------------------------------------------------- |
+| `TODO`     | Planned, not started.                              |
+| `OPTIONAL` | Recorded for future consideration; not scheduled.  |
+| `WIP`      | In progress on a feature branch.                   |
+| `REVIEW`   | Implemented, under review / validating.            |
+| `DONE`     | Merged, gates green, docs updated.                 |
+| `DROPPED`  | Considered and rejected (see ADRs for the reason). |
 
 ## Definition of done
 
@@ -105,6 +106,20 @@ Improve tool-calling reliability.
 | --- | -------------------------------------------------------- | ------ | ----- | ------ | --- | -------- |
 | F-1 | Concrete few-shot examples in high-error tool prompts    | TODO   | #10   |        |     |          |
 | F-2 | Enable `PromptConfig.initialMessages` in built-in agents | TODO   | #11   |        |     |          |
+
+## Backlog (optional)
+
+Recorded for future consideration. These items are **not scheduled** and do not
+affect the current focus. They extend the AH-3 file re-injection into a general,
+adapter-based context ledger; the shared foundation is AH-5.
+
+| ID   | Item                                                      | Status   | Issue | Depends on |
+| ---- | --------------------------------------------------------- | -------- | ----- | ---------- |
+| AH-4 | Compaction-safe user instruction ledger                   | OPTIONAL | #16   | AH-5       |
+| AH-5 | Central context ledger + adapter framework                | OPTIONAL | #18   |            |
+| AH-6 | Retrieval ledger adapter: grep / ripgrep / glob / search  | OPTIONAL | #19   | AH-5       |
+| AH-7 | Retrieval ledger adapter: MCP tools / `read_mcp_resource` | OPTIONAL | #20   | AH-5       |
+| AH-8 | Retrieval ledger adapter: webfetch / web search           | OPTIONAL | #21   | AH-5       |
 
 ## Decision records
 
