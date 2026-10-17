@@ -816,6 +816,28 @@ describe('Gemini Client (client.ts)', () => {
       expect(breaker.getState()).toBe('closed');
     });
 
+    it('does not open the breaker when compression fails after the signal aborts', async () => {
+      const breaker = new CompactionCircuitBreaker(() => 1_000_000);
+      (
+        client as unknown as {
+          compactionCircuitBreaker: CompactionCircuitBreaker;
+        }
+      ).compactionCircuitBreaker = breaker;
+
+      setup({});
+      const controller = new AbortController();
+      controller.abort();
+      vi.mocked(
+        ChatCompressionService.prototype.compress,
+      ).mockRejectedValueOnce(new Error('network down'));
+
+      await expect(
+        client.tryCompressChat('prompt-1', false, controller.signal),
+      ).rejects.toThrow('network down');
+
+      expect(breaker.getState()).toBe('closed');
+    });
+
     it('should not trigger summarization if token count is below threshold', async () => {
       const MOCKED_TOKEN_LIMIT = 1000;
       const originalTokenCount = MOCKED_TOKEN_LIMIT * 0.699;

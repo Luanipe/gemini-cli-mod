@@ -3766,6 +3766,36 @@ describe('LocalAgentExecutor', () => {
       expect(breaker.getState()).toBe('open');
       expect(breaker.getConsecutiveFailures()).toBe(1);
     });
+
+    it('should not open the circuit breaker when compression fails after the signal aborts', async () => {
+      const definition = createTestDefinition();
+      const executor = await LocalAgentExecutor.create(
+        definition,
+        mockConfig,
+        onActivity,
+      );
+
+      const controller = new AbortController();
+      mockCompress.mockImplementationOnce(async () => {
+        controller.abort();
+        throw new Error('aborted by signal');
+      });
+
+      await expect(
+        executor.run({ goal: 'Compress abort' }, controller.signal),
+      ).rejects.toThrow('aborted by signal');
+
+      const breaker = (
+        executor as unknown as {
+          compactionCircuitBreaker: {
+            getState(): string;
+            getConsecutiveFailures(): number;
+          };
+        }
+      ).compactionCircuitBreaker;
+      expect(breaker.getState()).toBe('closed');
+      expect(breaker.getConsecutiveFailures()).toBe(0);
+    });
   });
 
   describe('MCP Isolation', () => {
