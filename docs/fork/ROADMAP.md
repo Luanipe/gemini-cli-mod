@@ -75,7 +75,7 @@ silently dropped from the window.
 | ---- | ------------------------------------------------------- | ------ | ----- | ---------------------------------------------------- | --- | ----------- |
 | AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | #1    | `feat/read-before-edit`                              | #12 | `8754ff17d` |
 | AH-2 | Compaction circuit breaker + cooldown                   | DONE   | #2    | `feat/anti-hallucination-compaction-circuit-breaker` | #15 | `67c354349` |
-| AH-3 | Post-compact re-injection of recently touched files     | TODO   | #3    |                                                      |     |             |
+| AH-3 | Post-compact re-injection of recently touched files     | REVIEW | #3    | `feat/anti-hallucination-post-compact-reinjection`   | #17 | `26159036f` |
 
 ### Harness
 
