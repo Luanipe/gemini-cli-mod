@@ -152,6 +152,19 @@ describe('SettingsSchema', () => {
       ).toBe('array');
     });
 
+    it('should have recentFileReinjection nested properties', () => {
+      const properties =
+        getSettingsSchema().context.properties.recentFileReinjection.properties;
+      expect(properties?.enabled.type).toBe('boolean');
+      expect(properties?.enabled.default).toBe(true);
+      expect(properties?.maxFiles.type).toBe('number');
+      expect(properties?.maxFiles.default).toBe(10);
+      expect(properties?.maxTokensPerFile.type).toBe('number');
+      expect(properties?.maxTokensPerFile.default).toBe(5000);
+      expect(properties?.maxTokensTotal.type).toBe('number');
+      expect(properties?.maxTokensTotal.default).toBe(50000);
+    });
+
     it('should have unique categories', () => {
       const categories = new Set();
 

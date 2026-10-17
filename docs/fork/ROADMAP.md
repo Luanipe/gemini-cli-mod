@@ -75,7 +75,7 @@ silently dropped from the window.
 | ---- | ------------------------------------------------------- | ------ | ----- | ---------------------------------------------------- | --- | ----------- |
 | AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | #1    | `feat/read-before-edit`                              | #12 | `8754ff17d` |
 | AH-2 | Compaction circuit breaker + cooldown                   | DONE   | #2    | `feat/anti-hallucination-compaction-circuit-breaker` | #15 | `67c354349` |
-| AH-3 | Post-compact re-injection of recently touched files     | TODO   | #3    |                                                      |     |             |
+| AH-3 | Post-compact re-injection of recently touched files     | DONE   | #3    | `feat/anti-hallucination-post-compact-reinjection`   | #17 | `26159036f` |
 
 ### Harness
 
@@ -114,3 +114,5 @@ Decisions that are hard to reverse or that need context are recorded as ADRs in
 - [ADR-0000](./decisions/ADR-0000-template.md) — template.
 - [ADR-0001](./decisions/ADR-0001-read-before-edit-hard-fail.md) —
   read-before-edit enforcement is a hard failure.
+- [ADR-0002](./decisions/ADR-0002-post-compact-reinjection.md) — post-compaction
+  re-injection of recently touched files.

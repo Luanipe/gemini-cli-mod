@@ -2986,6 +2986,44 @@
             }
           },
           "additionalProperties": false
+        },
+        "recentFileReinjection": {
+          "title": "Recent File Re-injection",
+          "description": "Re-inject the content of recently touched files after the conversation is compressed, so the model is not reasoning from a summary alone.",
+          "markdownDescription": "Re-inject the content of recently touched files after the conversation is compressed, so the model is not reasoning from a summary alone.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `{}`",
+          "default": {},
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "Enabled",
+              "description": "Re-inject recently touched files after chat compaction.",
+              "markdownDescription": "Re-inject recently touched files after chat compaction.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `true`",
+              "default": true,
+              "type": "boolean"
+            },
+            "maxFiles": {
+              "title": "Maximum Files",
+              "description": "Maximum number of recently touched files to re-inject.",
+              "markdownDescription": "Maximum number of recently touched files to re-inject.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `10`",
+              "default": 10,
+              "type": "number"
+            },
+            "maxTokensPerFile": {
+              "title": "Maximum Tokens Per File",
+              "description": "Token budget for a single re-injected file. Larger files are truncated.",
+              "markdownDescription": "Token budget for a single re-injected file. Larger files are truncated.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `5000`",
+              "default": 5000,
+              "type": "number"
+            },
+            "maxTokensTotal": {
+              "title": "Maximum Tokens Total",
+              "description": "Total token budget across all re-injected files.",
+              "markdownDescription": "Total token budget across all re-injected files.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `50000`",
+              "default": 50000,
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

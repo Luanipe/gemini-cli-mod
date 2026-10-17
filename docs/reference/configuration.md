@@ -1768,11 +1768,36 @@ their corresponding top-level category object in your `settings.json` file.
   - **Requires restart:** Yes
 
 - **`context.fileFiltering.customIgnoreFilePaths`** (array):
+
   - **Description:** Additional ignore file paths to respect. These files take
     precedence over .geminiignore and .gitignore. Files earlier in the array
     take precedence over files later in the array, e.g. the first file takes
     precedence over the second one.
   - **Default:** `[]`
+  - **Requires restart:** Yes
+
+- **`context.recentFileReinjection.enabled`** (boolean):
+
+  - **Description:** Re-inject recently touched files after chat compaction.
+  - **Default:** `true`
+  - **Requires restart:** Yes
+
+- **`context.recentFileReinjection.maxFiles`** (number):
+
+  - **Description:** Maximum number of recently touched files to re-inject.
+  - **Default:** `10`
+  - **Requires restart:** Yes
+
+- **`context.recentFileReinjection.maxTokensPerFile`** (number):
+
+  - **Description:** Token budget for a single re-injected file. Larger files
+    are truncated.
+  - **Default:** `5000`
+  - **Requires restart:** Yes
+
+- **`context.recentFileReinjection.maxTokensTotal`** (number):
+  - **Description:** Total token budget across all re-injected files.
+  - **Default:** `50000`
   - **Requires restart:** Yes
 
 #### `tools`
