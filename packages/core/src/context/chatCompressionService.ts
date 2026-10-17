@@ -589,16 +589,24 @@ export class ChatCompressionService {
           config,
           truncatedHistory,
         );
-        const newHistory = reinjection
+        let newHistory = reinjection
           ? insertAfterEnvContext(truncatedHistory, reinjection)
           : truncatedHistory;
+        let newTokenCount = reinjection
+          ? estimateTokenCountSync(newHistory.flatMap((c) => c.parts || []))
+          : truncatedTokenCount;
+
+        // Re-injection must not grow the context the truncation just shrank.
+        if (reinjection && newTokenCount > originalTokenCount) {
+          newHistory = truncatedHistory;
+          newTokenCount = truncatedTokenCount;
+        }
+
         return {
           newHistory,
           info: {
             originalTokenCount,
-            newTokenCount: reinjection
-              ? estimateTokenCountSync(newHistory.flatMap((c) => c.parts || []))
-              : truncatedTokenCount,
+            newTokenCount,
             compressionStatus: CompressionStatus.CONTENT_TRUNCATED,
           },
         };

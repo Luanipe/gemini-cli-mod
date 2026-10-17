@@ -1620,5 +1620,96 @@ describe('ChatCompressionService', () => {
       expect(firstTurn.parts![0].text).toContain('<recently_referenced_files>');
       expect(firstTurn.parts![0].text).toContain(content);
     });
+
+    it('places re-injection after a leading environment context when present', async () => {
+      const content = 'export const placed = 1;';
+      const filePath = writeTrackedFile('placed.ts', content);
+      await fileReadState.recordRead(filePath, content);
+
+      const largeResponse = 'a'.repeat(170000);
+      vi.mocked(mockChat.getHistory).mockReturnValue([
+        {
+          role: 'user',
+          parts: [{ text: '<session_context>environment</session_context>' }],
+        },
+        { role: 'user', parts: [{ text: 'old msg' }] },
+        { role: 'model', parts: [{ text: 'old resp' }] },
+        {
+          role: 'user',
+          parts: [
+            {
+              functionResponse: {
+                name: 'grep',
+                response: { content: largeResponse },
+              },
+            },
+          ],
+        },
+      ]);
+      vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(600000);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        true,
+      );
+
+      expect(result.info.compressionStatus).toBe(
+        CompressionStatus.CONTENT_TRUNCATED,
+      );
+      expect(result.newHistory![0].parts![0].text).toContain(
+        '<session_context>',
+      );
+      expect(result.newHistory![1].parts![0].text).toContain(
+        '<recently_referenced_files>',
+      );
+      expect(result.newHistory![1].parts![0].text).toContain(content);
+    });
+
+    it('drops re-injection when it would inflate a truncated history', async () => {
+      const content = 'y'.repeat(20000);
+      const filePath = writeTrackedFile('inflate.ts', content);
+      await fileReadState.recordRead(filePath, content);
+
+      const largeResponse = 'a'.repeat(170000);
+      vi.mocked(mockChat.getHistory).mockReturnValue([
+        { role: 'user', parts: [{ text: 'old msg' }] },
+        { role: 'model', parts: [{ text: 'old resp' }] },
+        {
+          role: 'user',
+          parts: [
+            {
+              functionResponse: {
+                name: 'grep',
+                response: { content: largeResponse },
+              },
+            },
+          ],
+        },
+      ]);
+      vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(44000);
+      vi.mocked(tokenLimit).mockReturnValue(88000);
+      vi.mocked(mockConfig.getCompressionThreshold).mockResolvedValue(0.5);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        true,
+      );
+
+      expect(result.info.compressionStatus).toBe(
+        CompressionStatus.CONTENT_TRUNCATED,
+      );
+      expect(JSON.stringify(result.newHistory)).not.toContain(
+        '<recently_referenced_files>',
+      );
+      expect(result.info.newTokenCount).toBeLessThanOrEqual(44000);
+    });
   });
 });
