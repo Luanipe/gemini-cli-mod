@@ -73,7 +73,7 @@ silently dropped from the window.
 
 | ID   | Item                                                    | Status | Issue | Branch                  | PR  | Evidence    |
 | ---- | ------------------------------------------------------- | ------ | ----- | ----------------------- | --- | ----------- |
-| AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | REVIEW | #1    | `feat/read-before-edit` | #12 | `8754ff17d` |
+| AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | #1    | `feat/read-before-edit` | #12 | `8754ff17d` |
 | AH-2 | Compaction circuit breaker + cooldown                   | TODO   | #2    |                         |     |             |
 | AH-3 | Post-compact re-injection of recently touched files     | TODO   | #3    |                         |     |             |
 
