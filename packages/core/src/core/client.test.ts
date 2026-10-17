@@ -40,6 +40,10 @@ import { ideContextStore } from '../ide/ideContext.js';
 import type { ModelRouterService } from '../routing/modelRouterService.js';
 import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 import { ChatCompressionService } from '../context/chatCompressionService.js';
+import {
+  CompactionCircuitBreaker,
+  MIN_COOLDOWN_MS,
+} from '../context/compactionCircuitBreaker.js';
 import type { ChatRecordingService } from '../services/chatRecordingService.js';
 import { createAvailabilityServiceMock } from '../availability/testUtils.js';
 import type { ModelAvailabilityService } from '../availability/modelAvailabilityService.js';
@@ -656,7 +660,7 @@ describe('Gemini Client (client.ts)', () => {
         );
       });
     });
-    it('should correctly latch hasFailedCompressionAttempt flag', async () => {
+    it('should open the compaction circuit breaker after a non-forced failure', async () => {
       // 1. Setup: Call setup() from this test file
       // This helper function mocks the compression service for us.
       const { client } = setup({
@@ -669,23 +673,104 @@ describe('Gemini Client (client.ts)', () => {
       // 2. Test Step 1: Trigger a non-forced failure
       await client.tryCompressChat('prompt-1', false); // force = false
 
-      // 3. Assert Step 1: Check that the flag became true
-      // 3. Assert Step 1: Check that the flag became true
-      expect(
-        (client as unknown as { hasFailedCompressionAttempt: boolean })
-          .hasFailedCompressionAttempt,
-      ).toBe(true);
+      // 3. Assert Step 1: The breaker opened.
+      const breaker = (
+        client as unknown as {
+          compactionCircuitBreaker: CompactionCircuitBreaker;
+        }
+      ).compactionCircuitBreaker;
+      expect(breaker.getState()).toBe('open');
+      expect(breaker.getConsecutiveFailures()).toBe(1);
 
       // 4. Test Step 2: Trigger a forced failure
-
       await client.tryCompressChat('prompt-2', true); // force = true
 
-      // 5. Assert Step 2: Check that the flag REMAINS true
-      // 5. Assert Step 2: Check that the flag REMAINS true
+      // 5. Assert Step 2: Forced failures do not count against the breaker.
+      expect(breaker.getState()).toBe('open');
+      expect(breaker.getConsecutiveFailures()).toBe(1);
+    });
+
+    it('skips summarization while the breaker is open and probes after the cooldown', async () => {
+      let now = 1_000_000;
+      const breaker = new CompactionCircuitBreaker(() => now);
+      (
+        client as unknown as {
+          compactionCircuitBreaker: CompactionCircuitBreaker;
+        }
+      ).compactionCircuitBreaker = breaker;
+
+      setup({
+        originalTokenCount: 100,
+        newTokenCount: 200,
+        compressionStatus:
+          CompressionStatus.COMPRESSION_FAILED_INFLATED_TOKEN_COUNT,
+      });
+
+      await client.tryCompressChat('prompt-1', false);
       expect(
-        (client as unknown as { hasFailedCompressionAttempt: boolean })
-          .hasFailedCompressionAttempt,
+        vi
+          .mocked(ChatCompressionService.prototype.compress)
+          .mock.calls.at(-1)?.[5],
+      ).toBe(false);
+
+      // While open the service would only truncate; make the mock reflect that
+      // so it does not count as another summarization failure.
+      vi.mocked(
+        ChatCompressionService.prototype.compress,
+      ).mockResolvedValueOnce({
+        newHistory: null,
+        info: {
+          originalTokenCount: 100,
+          newTokenCount: 100,
+          compressionStatus: CompressionStatus.CONTENT_TRUNCATED,
+        },
+      });
+      await client.tryCompressChat('prompt-2', false);
+      expect(
+        vi
+          .mocked(ChatCompressionService.prototype.compress)
+          .mock.calls.at(-1)?.[5],
       ).toBe(true);
+
+      now += MIN_COOLDOWN_MS;
+      await client.tryCompressChat('prompt-3', false);
+      expect(breaker.getState()).toBe('open');
+      expect(
+        vi
+          .mocked(ChatCompressionService.prototype.compress)
+          .mock.calls.at(-1)?.[5],
+      ).toBe(false);
+    });
+
+    it('closes the breaker after a successful half-open retry', async () => {
+      let now = 1_000_000;
+      const breaker = new CompactionCircuitBreaker(() => now);
+      (
+        client as unknown as {
+          compactionCircuitBreaker: CompactionCircuitBreaker;
+        }
+      ).compactionCircuitBreaker = breaker;
+
+      setup({
+        originalTokenCount: 100,
+        newTokenCount: 200,
+        compressionStatus:
+          CompressionStatus.COMPRESSION_FAILED_INFLATED_TOKEN_COUNT,
+      });
+      await client.tryCompressChat('prompt-1', false);
+      expect(breaker.getState()).toBe('open');
+
+      setup({
+        originalTokenCount: 100,
+        newTokenCount: 50,
+        compressionStatus: CompressionStatus.COMPRESSED,
+      });
+
+      now += MIN_COOLDOWN_MS;
+      await client.tryCompressChat('prompt-2', false);
+
+      expect(breaker.getState()).toBe('closed');
+      expect(breaker.getConsecutiveFailures()).toBe(0);
     });
 
     it('should not trigger summarization if token count is below threshold', async () => {

@@ -44,6 +44,7 @@ import type {
 import type { ContentGenerator } from './contentGenerator.js';
 import { LoopDetectionService } from '../services/loopDetectionService.js';
 import { ChatCompressionService } from '../context/chatCompressionService.js';
+import { CompactionCircuitBreaker } from '../context/compactionCircuitBreaker.js';
 import { AgentHistoryProvider } from '../context/agentHistoryProvider.js';
 import type { ContextManager } from '../context/contextManager.js';
 import type { HistoryTurn } from './agentChatHistory.js';
@@ -104,11 +105,7 @@ export class GeminiClient {
   private lastSentIdeContext: IdeContext | undefined;
   private forceFullIdeContext = true;
 
-  /**
-   * At any point in this conversation, was compression triggered without
-   * being forced and did it fail?
-   */
-  private hasFailedCompressionAttempt = false;
+  private readonly compactionCircuitBreaker = new CompactionCircuitBreaker();
 
   constructor(private readonly context: AgentLoopContext) {
     this.loopDetector = new LoopDetectionService(this.config);
@@ -412,7 +409,7 @@ export class GeminiClient {
     resumedSessionData?: ResumedSessionData,
   ): Promise<GeminiChat> {
     this.forceFullIdeContext = true;
-    this.hasFailedCompressionAttempt = false;
+    this.compactionCircuitBreaker.reset();
     this.lastUsedModelId = undefined;
 
     const toolRegistry = this.context.toolRegistry;
@@ -1233,23 +1230,31 @@ export class GeminiClient {
     // before the model is chosen would result in an error.
     const model = this._getActiveModelForCurrentTurn();
 
+    // A forced (manual) compression always tries summarization; an automatic
+    // one is skipped while the circuit breaker is open.
+    const skipSummarization =
+      !force && !this.compactionCircuitBreaker.shouldAttempt();
+
     const { newHistory, info } = await this.compressionService.compress(
       this.getChat(),
       prompt_id,
       force,
       model,
       this.config,
-      this.hasFailedCompressionAttempt,
+      skipSummarization,
       abortSignal,
     );
 
-    if (
+    const compressionFailed =
       info.compressionStatus ===
-      CompressionStatus.COMPRESSION_FAILED_INFLATED_TOKEN_COUNT
-    ) {
-      this.hasFailedCompressionAttempt =
-        this.hasFailedCompressionAttempt || !force;
+        CompressionStatus.COMPRESSION_FAILED_INFLATED_TOKEN_COUNT ||
+      info.compressionStatus ===
+        CompressionStatus.COMPRESSION_FAILED_EMPTY_SUMMARY;
+
+    if (compressionFailed && !force) {
+      this.compactionCircuitBreaker.recordFailure();
     } else if (info.compressionStatus === CompressionStatus.COMPRESSED) {
+      this.compactionCircuitBreaker.recordSuccess();
       if (newHistory) {
         // capture current session data before resetting
         const currentRecordingService =
@@ -1269,8 +1274,9 @@ export class GeminiClient {
       }
     } else if (info.compressionStatus === CompressionStatus.CONTENT_TRUNCATED) {
       if (newHistory) {
-        // We truncated content to save space, but summarization is still "failed".
-        // We update the chat context directly without resetting the failure flag.
+        // We truncated content to save space because summarization is skipped
+        // while the compaction circuit breaker is open. We update the chat
+        // context directly without resetting the breaker.
         this.getChat().setHistory(newHistory);
         this.updateTelemetryTokenCount();
         // We don't reset the chat session fully like in COMPRESSED because

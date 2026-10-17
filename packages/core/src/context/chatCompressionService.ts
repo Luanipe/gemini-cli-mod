@@ -470,7 +470,7 @@ export class ChatCompressionService {
     force: boolean,
     model: string,
     config: Config,
-    hasFailedCompressionAttempt: boolean,
+    skipSummarization: boolean,
     abortSignal?: AbortSignal,
   ): Promise<{ newHistory: Content[] | null; info: ChatCompressionInfo }> {
     const curatedHistory = chat.getHistory(true);
@@ -525,9 +525,10 @@ export class ChatCompressionService {
       config,
     );
 
-    // If summarization previously failed (and not forced), we only rely on truncation.
-    // We do NOT attempt to invoke the LLM for summarization again to avoid repeated failures/costs.
-    if (hasFailedCompressionAttempt && !force) {
+    // While the compaction circuit breaker is open we only rely on truncation.
+    // We do NOT attempt to invoke the LLM for summarization again to avoid
+    // repeated failures/costs.
+    if (skipSummarization && !force) {
       const truncatedTokenCount = estimateTokenCountSync(
         truncatedHistory.flatMap((c) => c.parts || []),
       );
