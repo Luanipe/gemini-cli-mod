@@ -29,13 +29,14 @@ import {
   parseMcpToolName,
   MCP_TOOL_PREFIX,
 } from '../tools/mcp-tool.js';
-import { CompressionStatus } from '../core/turn.js';
+import { CompressionStatus, type ChatCompressionInfo } from '../core/turn.js';
 import { type ToolCallRequestInfo } from '../scheduler/types.js';
 import {
   ChatCompressionService,
   collapseOlderFunctionResponses,
   DEFAULT_COMPRESSION_TOKEN_THRESHOLD,
 } from '../context/chatCompressionService.js';
+import { CompactionCircuitBreaker } from '../context/compactionCircuitBreaker.js';
 import { MAX_STORED_TOOL_OUTPUT_BYTES } from '../utils/constants.js';
 import {
   truncateFunctionResponsePart,
@@ -68,7 +69,7 @@ import {
   type OutputObject,
   type SubagentActivityEvent,
 } from './types.js';
-import { getErrorMessage } from '../utils/errors.js';
+import { getErrorMessage, isAbortError } from '../utils/errors.js';
 import { templateString } from './utils.js';
 import { DEFAULT_GEMINI_MODEL, isAutoModel } from '../config/models.js';
 import { tokenLimit } from '../core/tokenLimits.js';
@@ -139,7 +140,7 @@ export class LocalAgentExecutor<TOutput extends z.ZodTypeAny> {
   private readonly onActivity?: ActivityCallback;
   private readonly compressionService: ChatCompressionService;
   private readonly parentCallId?: string;
-  private hasFailedCompressionAttempt = false;
+  private readonly compactionCircuitBreaker = new CompactionCircuitBreaker();
   private cache: LRUCache<string, string>;
 
   private get executionContext(): AgentLoopContext {
@@ -549,6 +550,8 @@ export class LocalAgentExecutor<TOutput extends z.ZodTypeAny> {
    * @returns A promise that resolves to the agent's final output.
    */
   async run(inputs: AgentInputs, signal: AbortSignal): Promise<OutputObject> {
+    this.compactionCircuitBreaker.reset();
+
     const runWithWorkspaceScope = () => {
       // If the agent definition declares additional workspace directories,
       // wrap execution in a scoped workspace context. All calls to
@@ -944,22 +947,38 @@ export class LocalAgentExecutor<TOutput extends z.ZodTypeAny> {
       }
     }
 
-    const { newHistory, info } = await this.compressionService.compress(
-      chat,
-      prompt_id,
-      false,
-      model,
-      this.context.config,
-      this.hasFailedCompressionAttempt,
-      abortSignal,
-    );
+    let newHistory: Content[] | null;
+    let info: ChatCompressionInfo;
+    try {
+      ({ newHistory, info } = await this.compressionService.compress(
+        chat,
+        prompt_id,
+        false,
+        model,
+        this.context.config,
+        !this.compactionCircuitBreaker.shouldAttempt(),
+        abortSignal,
+      ));
+    } catch (error) {
+      // A thrown compression error is still a summarization failure: trip the
+      // breaker so we do not retry the expensive call on every turn. Aborts are
+      // expected cancellations, not failures.
+      if (!abortSignal?.aborted && !isAbortError(error)) {
+        this.compactionCircuitBreaker.recordFailure();
+      }
+      throw error;
+    }
 
-    if (
+    const compressionFailed =
       info.compressionStatus ===
-      CompressionStatus.COMPRESSION_FAILED_INFLATED_TOKEN_COUNT
-    ) {
-      this.hasFailedCompressionAttempt = true;
+        CompressionStatus.COMPRESSION_FAILED_INFLATED_TOKEN_COUNT ||
+      info.compressionStatus ===
+        CompressionStatus.COMPRESSION_FAILED_EMPTY_SUMMARY;
+
+    if (compressionFailed) {
+      this.compactionCircuitBreaker.recordFailure();
     } else if (info.compressionStatus === CompressionStatus.COMPRESSED) {
+      this.compactionCircuitBreaker.recordSuccess();
       if (newHistory) {
         const existingTurns = chat.getHistoryTurns?.(false) ?? [];
         const turns = newHistory.map((c, idx) => ({
@@ -967,7 +986,6 @@ export class LocalAgentExecutor<TOutput extends z.ZodTypeAny> {
           content: c,
         }));
         chat.setHistory(turns);
-        this.hasFailedCompressionAttempt = false;
       }
     } else if (info.compressionStatus === CompressionStatus.CONTENT_TRUNCATED) {
       if (newHistory) {
@@ -977,9 +995,9 @@ export class LocalAgentExecutor<TOutput extends z.ZodTypeAny> {
           content: c,
         }));
         chat.setHistory(turns);
-        // Do NOT reset hasFailedCompressionAttempt.
-        // We only truncated content because summarization previously failed.
-        // We want to keep avoiding expensive summarization calls.
+        // Do not record an outcome: truncation-only compaction says nothing
+        // about whether the summarizer has recovered. The breaker stays open
+        // (or half-open) until a real summarization succeeds or fails.
       }
     }
   }

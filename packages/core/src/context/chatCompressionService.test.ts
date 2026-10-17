@@ -239,7 +239,7 @@ describe('ChatCompressionService', () => {
     expect(result.newHistory).toBeNull();
   });
 
-  it('should return NOOP if previously failed and not forced', async () => {
+  it('should return NOOP for a tiny history while summarization is skipped', async () => {
     vi.mocked(mockChat.getHistory).mockReturnValue([
       { role: 'user', parts: [{ text: 'hi' }] },
     ]);
@@ -249,12 +249,48 @@ describe('ChatCompressionService', () => {
       false,
       mockModel,
       mockConfig,
-      false,
+      true,
     );
-    // It should now attempt compression even if previously failed (logic removed)
-    // But since history is small, it will be NOOP due to threshold
+    // The threshold is checked before the skip, so a small history is a NOOP.
     expect(result.info.compressionStatus).toBe(CompressionStatus.NOOP);
     expect(result.newHistory).toBeNull();
+  });
+
+  it('should only truncate when summarization is skipped', async () => {
+    const largeResponse = 'a'.repeat(170000);
+    vi.mocked(mockChat.getHistory).mockReturnValue([
+      { role: 'user', parts: [{ text: 'old msg' }] },
+      { role: 'model', parts: [{ text: 'old resp' }] },
+      {
+        role: 'user',
+        parts: [
+          {
+            functionResponse: {
+              name: 'grep',
+              response: { content: largeResponse },
+            },
+          },
+        ],
+      },
+    ]);
+    vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(600000);
+
+    const result = await service.compress(
+      mockChat,
+      mockPromptId,
+      false,
+      mockModel,
+      mockConfig,
+      true,
+    );
+
+    expect(result.info.compressionStatus).toBe(
+      CompressionStatus.CONTENT_TRUNCATED,
+    );
+    expect(result.newHistory).not.toBeNull();
+    expect(
+      mockConfig.getBaseLlmClient().generateContent,
+    ).not.toHaveBeenCalled();
   });
 
   it('should return NOOP if under token threshold and not forced', async () => {
