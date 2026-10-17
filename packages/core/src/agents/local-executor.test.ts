@@ -3629,7 +3629,7 @@ describe('LocalAgentExecutor', () => {
       );
     });
 
-    it('should pass hasFailedCompressionAttempt=true to compression after a failure', async () => {
+    it('should skip summarization after a compression failure', async () => {
       const definition = createTestDefinition();
       const executor = await LocalAgentExecutor.create(
         definition,
@@ -3668,13 +3668,13 @@ describe('LocalAgentExecutor', () => {
       await executor.run({ goal: 'Compress fail' }, signal);
 
       expect(mockCompress).toHaveBeenCalledTimes(2);
-      // First call, hasFailedCompressionAttempt is false
+      // First call, summarization is allowed
       expect(mockCompress.mock.calls[0][5]).toBe(false);
-      // Second call, hasFailedCompressionAttempt is true
+      // Second call, summarization is skipped
       expect(mockCompress.mock.calls[1][5]).toBe(true);
     });
 
-    it('should reset hasFailedCompressionAttempt flag after a successful compression', async () => {
+    it('should allow summarization again after a successful compression', async () => {
       const definition = createTestDefinition();
       const executor = await LocalAgentExecutor.create(
         definition,
@@ -3723,11 +3723,11 @@ describe('LocalAgentExecutor', () => {
       await executor.run({ goal: 'Compress reset' }, signal);
 
       expect(mockCompress).toHaveBeenCalledTimes(3);
-      // Call 1: hasFailed... is false
+      // Call 1: summarization is allowed
       expect(mockCompress.mock.calls[0][5]).toBe(false);
-      // Call 2: hasFailed... is true
+      // Call 2: summarization is skipped after the failure
       expect(mockCompress.mock.calls[1][5]).toBe(true);
-      // Call 3: hasFailed... is false again
+      // Call 3: summarization is allowed again after the success
       expect(mockCompress.mock.calls[2][5]).toBe(false);
 
       expect(mockSetHistory).toHaveBeenCalledTimes(1);
@@ -3739,6 +3739,32 @@ describe('LocalAgentExecutor', () => {
           }),
         ]),
       );
+    });
+
+    it('should open the circuit breaker when compression throws', async () => {
+      const definition = createTestDefinition();
+      const executor = await LocalAgentExecutor.create(
+        definition,
+        mockConfig,
+        onActivity,
+      );
+
+      mockCompress.mockRejectedValueOnce(new Error('compression boom'));
+
+      await expect(
+        executor.run({ goal: 'Compress throw' }, signal),
+      ).rejects.toThrow('compression boom');
+
+      const breaker = (
+        executor as unknown as {
+          compactionCircuitBreaker: {
+            getState(): string;
+            getConsecutiveFailures(): number;
+          };
+        }
+      ).compactionCircuitBreaker;
+      expect(breaker.getState()).toBe('open');
+      expect(breaker.getConsecutiveFailures()).toBe(1);
     });
   });
 

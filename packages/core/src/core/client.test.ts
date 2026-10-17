@@ -773,6 +773,49 @@ describe('Gemini Client (client.ts)', () => {
       expect(breaker.getConsecutiveFailures()).toBe(0);
     });
 
+    it('opens the breaker when compression throws', async () => {
+      const breaker = new CompactionCircuitBreaker(() => 1_000_000);
+      (
+        client as unknown as {
+          compactionCircuitBreaker: CompactionCircuitBreaker;
+        }
+      ).compactionCircuitBreaker = breaker;
+
+      setup({});
+      vi.mocked(
+        ChatCompressionService.prototype.compress,
+      ).mockRejectedValueOnce(new Error('compression boom'));
+
+      await expect(client.tryCompressChat('prompt-1', false)).rejects.toThrow(
+        'compression boom',
+      );
+
+      expect(breaker.getState()).toBe('open');
+      expect(breaker.getConsecutiveFailures()).toBe(1);
+    });
+
+    it('does not open the breaker when compression is aborted', async () => {
+      const breaker = new CompactionCircuitBreaker(() => 1_000_000);
+      (
+        client as unknown as {
+          compactionCircuitBreaker: CompactionCircuitBreaker;
+        }
+      ).compactionCircuitBreaker = breaker;
+
+      setup({});
+      const abortError = new Error('aborted');
+      abortError.name = 'AbortError';
+      vi.mocked(
+        ChatCompressionService.prototype.compress,
+      ).mockRejectedValueOnce(abortError);
+
+      await expect(client.tryCompressChat('prompt-1', false)).rejects.toThrow(
+        'aborted',
+      );
+
+      expect(breaker.getState()).toBe('closed');
+    });
+
     it('should not trigger summarization if token count is below threshold', async () => {
       const MOCKED_TOKEN_LIMIT = 1000;
       const originalTokenCount = MOCKED_TOKEN_LIMIT * 0.699;

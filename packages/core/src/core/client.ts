@@ -1235,15 +1235,27 @@ export class GeminiClient {
     const skipSummarization =
       !force && !this.compactionCircuitBreaker.shouldAttempt();
 
-    const { newHistory, info } = await this.compressionService.compress(
-      this.getChat(),
-      prompt_id,
-      force,
-      model,
-      this.config,
-      skipSummarization,
-      abortSignal,
-    );
+    let newHistory: Content[] | null;
+    let info: ChatCompressionInfo;
+    try {
+      ({ newHistory, info } = await this.compressionService.compress(
+        this.getChat(),
+        prompt_id,
+        force,
+        model,
+        this.config,
+        skipSummarization,
+        abortSignal,
+      ));
+    } catch (error) {
+      // A thrown compression error is still a summarization failure: trip the
+      // breaker so we do not retry the expensive call on every turn. Aborts are
+      // expected user cancellations, not failures.
+      if (!force && !abortSignal?.aborted && !isAbortError(error)) {
+        this.compactionCircuitBreaker.recordFailure();
+      }
+      throw error;
+    }
 
     const compressionFailed =
       info.compressionStatus ===

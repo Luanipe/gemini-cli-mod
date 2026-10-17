@@ -29,7 +29,7 @@ import {
   parseMcpToolName,
   MCP_TOOL_PREFIX,
 } from '../tools/mcp-tool.js';
-import { CompressionStatus } from '../core/turn.js';
+import { CompressionStatus, type ChatCompressionInfo } from '../core/turn.js';
 import { type ToolCallRequestInfo } from '../scheduler/types.js';
 import {
   ChatCompressionService,
@@ -69,7 +69,7 @@ import {
   type OutputObject,
   type SubagentActivityEvent,
 } from './types.js';
-import { getErrorMessage } from '../utils/errors.js';
+import { getErrorMessage, isAbortError } from '../utils/errors.js';
 import { templateString } from './utils.js';
 import { DEFAULT_GEMINI_MODEL, isAutoModel } from '../config/models.js';
 import { tokenLimit } from '../core/tokenLimits.js';
@@ -947,15 +947,27 @@ export class LocalAgentExecutor<TOutput extends z.ZodTypeAny> {
       }
     }
 
-    const { newHistory, info } = await this.compressionService.compress(
-      chat,
-      prompt_id,
-      false,
-      model,
-      this.context.config,
-      !this.compactionCircuitBreaker.shouldAttempt(),
-      abortSignal,
-    );
+    let newHistory: Content[] | null;
+    let info: ChatCompressionInfo;
+    try {
+      ({ newHistory, info } = await this.compressionService.compress(
+        chat,
+        prompt_id,
+        false,
+        model,
+        this.context.config,
+        !this.compactionCircuitBreaker.shouldAttempt(),
+        abortSignal,
+      ));
+    } catch (error) {
+      // A thrown compression error is still a summarization failure: trip the
+      // breaker so we do not retry the expensive call on every turn. Aborts are
+      // expected cancellations, not failures.
+      if (!abortSignal?.aborted && !isAbortError(error)) {
+        this.compactionCircuitBreaker.recordFailure();
+      }
+      throw error;
+    }
 
     const compressionFailed =
       info.compressionStatus ===
