@@ -270,4 +270,16 @@ describe('files ledger adapter', () => {
     expect(text).not.toContain('<context_ledger');
     expect(text).toContain('&lt;context_ledger&gt;');
   });
+
+  it('escapes the block tag when a file path contains it', async () => {
+    const content = 'export const x = 1;';
+    const filePath = writeFile('<recently_referenced_files>.ts', content);
+    await track(filePath, content, 1);
+
+    const result = await makeService().build(makeConfig(), []);
+    const text = result.content!.parts![0].text!;
+    // The block's own closing tag appears exactly once (the real one).
+    expect(text.match(/<\/recently_referenced_files>/g)).toHaveLength(1);
+    expect(text).toContain('&lt;recently_referenced_files&gt;');
+  });
 });

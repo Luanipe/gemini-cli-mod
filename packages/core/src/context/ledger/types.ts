@@ -83,7 +83,9 @@ export interface ContextLedgerAdapter {
    */
   readonly selfLabelsTrust?: boolean;
   /**
-   * Collects candidate entries. Content must be resolved, never summarized.
+   * Collects candidate entries. Content must be resolved, never summarized; it
+   * is rendered verbatim except that ledger container tags are neutralized
+   * (escaped) so content cannot close or spoof a block.
    *
    * The ledger skips an entry whose `content` is still verbatim in the
    * preserved tail. That check is a substring match, so `content` must be

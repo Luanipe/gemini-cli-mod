@@ -47,12 +47,16 @@ again before editing.`;
 function formatBlock(entries: readonly ResolvedLedgerEntry[]): string {
   const sections = entries
     .map((entry) => {
-      // A file containing the block's own tag must not close it early.
+      // A file (or its path) containing the block's own tag must not close it.
+      const label = escapeLedgerTag(
+        entry.entry.label,
+        RECENTLY_REFERENCED_FILES_TAG,
+      );
       const content = escapeLedgerTag(
         entry.content,
         RECENTLY_REFERENCED_FILES_TAG,
       );
-      return `### ${entry.entry.label}\n\`\`\`\n${content}\n\`\`\``;
+      return `### ${label}\n\`\`\`\n${content}\n\`\`\``;
     })
     .join('\n\n');
 
