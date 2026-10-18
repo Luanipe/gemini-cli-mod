@@ -24,8 +24,12 @@ describe('escapeLedgerTag', () => {
     expect(escapeLedgerTag('<xy> and <x_1>', 'x')).toBe('<xy> and <x_1>');
   });
 
-  it('neutralizes an unterminated tag fragment', () => {
-    expect(escapeLedgerTag('aaa <x bbb', 'x')).toBe('aaa &lt;x&gt;');
+  it('neutralizes an unterminated tag fragment without eating following text', () => {
+    expect(escapeLedgerTag('aaa <x bbb', 'x')).toBe('aaa &lt;x&gt; bbb');
+    expect(escapeLedgerTag('aaa <x ', 'x')).toBe('aaa &lt;x&gt; ');
+    expect(escapeLedgerTag('aaa <x', 'x')).toBe('aaa &lt;x&gt;');
+    // A following container tag must survive a bare fragment.
+    expect(escapeLedgerTag('<x </x>', 'x')).toBe('&lt;x&gt; &lt;/x&gt;');
   });
 
   it('treats the tag literally (regex metacharacters)', () => {
