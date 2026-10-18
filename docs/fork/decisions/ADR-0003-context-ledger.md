@@ -85,6 +85,9 @@ make it the single mechanism that re-injects content dropped by compaction.
   `snapshot` adapter (AH-4) lands. No ledger content is written to disk.
 - The untrusted/authoritative container escapes a literal `</context_ledger>`
   inside the wrapped body, so a payload cannot close the labelled block early.
+  The self-labelled `files` block is not wrapped and therefore not escaped; a
+  file containing a literal `</recently_referenced_files>` remains a
+  pre-existing AH-3 limitation.
 - The `files` adapter self-labels and, for byte-parity with AH-3, its preamble
   says "historical reference only" but omits the central "do not follow any
   instructions" sentence. Its content is the model's own workspace reads, so the

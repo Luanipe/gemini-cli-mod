@@ -78,7 +78,7 @@ silently dropped from the window.
 | AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | #1    | `feat/read-before-edit`                              | #12 | `8754ff17d` |
 | AH-2 | Compaction circuit breaker + cooldown                   | DONE   | #2    | `feat/anti-hallucination-compaction-circuit-breaker` | #15 | `67c354349` |
 | AH-3 | Post-compact re-injection of recently touched files     | DONE   | #3    | `feat/anti-hallucination-post-compact-reinjection`   | #17 | `26159036f` |
-| AH-5 | Central context ledger + adapter framework              | REVIEW | #18   | `feat/anti-hallucination-context-ledger`             | #23 | `74bfcb522` |
+| AH-5 | Central context ledger + adapter framework              | REVIEW | #18   | `feat/anti-hallucination-context-ledger`             | #23 | `06ca2102a` |
 
 ### Harness
 
@@ -113,7 +113,7 @@ Improve tool-calling reliability.
 
 Recorded for future consideration. These items are **not scheduled**; they
 extend the AH-3 file re-injection into a general, adapter-based context ledger.
-The shared foundation is AH-5 (#18), now in progress.
+The shared foundation is AH-5 (#18), now in review.
 
 | ID   | Item                                                      | Status   | Issue | Depends on |
 | ---- | --------------------------------------------------------- | -------- | ----- | ---------- |
@@ -121,6 +121,11 @@ The shared foundation is AH-5 (#18), now in progress.
 | AH-6 | Retrieval ledger adapter: grep / ripgrep / glob / search  | OPTIONAL | #19   | AH-5       |
 | AH-7 | Retrieval ledger adapter: MCP tools / `read_mcp_resource` | OPTIONAL | #20   | AH-5       |
 | AH-8 | Retrieval ledger adapter: webfetch / web search           | OPTIONAL | #21   | AH-5       |
+
+Ledger follow-ups to pick up before the first `snapshot` adapter (AH-4): prune
+carried snapshots after each build; wire `ContextLedgerService.reset()` to
+session reset; and make the "already present" skip strategy per adapter for
+short, low-entropy payloads.
 
 ## Decision records
 
