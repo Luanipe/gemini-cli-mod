@@ -104,7 +104,10 @@ export interface ContextLedgerBuildResult {
   injectedKeys: string[];
   /** Keys skipped because their content is still verbatim in the tail. */
   skippedPresentKeys: string[];
-  /** True when any per-entry or per-adapter budget truncated output. */
+  /**
+   * True when a per-entry or per-adapter budget truncated output, or when the
+   * central budget (or a zero remaining adapter budget) dropped a block.
+   */
   truncated: boolean;
   /** Estimated tokens in the injected block. */
   estimatedTokens: number;

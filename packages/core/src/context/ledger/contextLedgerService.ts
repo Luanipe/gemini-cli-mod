@@ -37,7 +37,7 @@ function countTokens(text: string): number {
  * payloads cannot close the ledger's labelled block early.
  */
 function escapeContainer(body: string): string {
-  return body.replace(/<\/context_ledger>/gi, '&lt;/context_ledger&gt;');
+  return body.replace(/<\/\s*context_ledger\s*>/gi, '&lt;/context_ledger&gt;');
 }
 
 function untrustedWrapper(adapterId: string, body: string): string {

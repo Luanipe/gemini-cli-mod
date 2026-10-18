@@ -74,7 +74,9 @@ export function createFilesAdapter(): ContextLedgerAdapter {
       if (!tracker) {
         return [];
       }
-      const limit = Math.max(0, settings.maxEntries ?? 0);
+      // `undefined` means unlimited, matching the ledger settings and the
+      // service's own slice; read only as many records as will be considered.
+      const limit = settings.maxEntries ?? Number.POSITIVE_INFINITY;
       const records = tracker.recentlyTouched(limit);
       const entries: ContextLedgerEntry[] = [];
       for (const [index, record] of records.entries()) {
