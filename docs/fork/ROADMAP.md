@@ -121,11 +121,10 @@ The shared foundation is AH-5 (#18), now in review.
 | AH-6 | Retrieval ledger adapter: grep / ripgrep / glob / search  | OPTIONAL | #19   | AH-5       |
 | AH-7 | Retrieval ledger adapter: MCP tools / `read_mcp_resource` | OPTIONAL | #20   | AH-5       |
 | AH-8 | Retrieval ledger adapter: webfetch / web search           | OPTIONAL | #21   | AH-5       |
+| AH-9 | Context ledger maintenance follow-ups                     | OPTIONAL | #24   | AH-5       |
 
-Ledger follow-ups to pick up before the first `snapshot` adapter (AH-4): prune
-carried snapshots after each build; wire `ContextLedgerService.reset()` to
-session reset; and make the "already present" skip strategy per adapter for
-short, low-entropy payloads.
+Ledger maintenance follow-ups (snapshot pruning, session reset, per-adapter
+skip) are tracked in AH-9 (#24).
 
 ## Decision records
 
