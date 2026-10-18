@@ -1776,27 +1776,39 @@ their corresponding top-level category object in your `settings.json` file.
   - **Default:** `[]`
   - **Requires restart:** Yes
 
-- **`context.recentFileReinjection.enabled`** (boolean):
+- **`context.ledger.enabled`** (boolean):
+
+  - **Description:** Master switch for the context ledger.
+  - **Default:** `true`
+  - **Requires restart:** Yes
+
+- **`context.ledger.maxTokensTotal`** (number):
+
+  - **Description:** Token budget shared across every ledger adapter's block.
+  - **Default:** `80000`
+  - **Requires restart:** Yes
+
+- **`context.ledger.adapters.files.enabled`** (boolean):
 
   - **Description:** Re-inject recently touched files after chat compaction.
   - **Default:** `true`
   - **Requires restart:** Yes
 
-- **`context.recentFileReinjection.maxFiles`** (number):
+- **`context.ledger.adapters.files.maxEntries`** (number):
 
   - **Description:** Maximum number of recently touched files to re-inject.
   - **Default:** `10`
   - **Requires restart:** Yes
 
-- **`context.recentFileReinjection.maxTokensPerFile`** (number):
+- **`context.ledger.adapters.files.maxTokensPerEntry`** (number):
 
   - **Description:** Token budget for a single re-injected file. Larger files
     are truncated.
   - **Default:** `5000`
   - **Requires restart:** Yes
 
-- **`context.recentFileReinjection.maxTokensTotal`** (number):
-  - **Description:** Total token budget across all re-injected files.
+- **`context.ledger.adapters.files.maxTokens`** (number):
+  - **Description:** Total token budget for the files adapter block.
   - **Default:** `50000`
   - **Requires restart:** Yes
 

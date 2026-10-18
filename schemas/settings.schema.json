@@ -2987,40 +2987,74 @@
           },
           "additionalProperties": false
         },
-        "recentFileReinjection": {
-          "title": "Recent File Re-injection",
-          "description": "Re-inject the content of recently touched files after the conversation is compressed, so the model is not reasoning from a summary alone.",
-          "markdownDescription": "Re-inject the content of recently touched files after the conversation is compressed, so the model is not reasoning from a summary alone.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `{}`",
+        "ledger": {
+          "title": "Context Ledger",
+          "description": "Re-inject content dropped by chat compaction through pluggable adapters, so the model is not reasoning from a summary alone.",
+          "markdownDescription": "Re-inject content dropped by chat compaction through pluggable adapters, so the model is not reasoning from a summary alone.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `{}`",
           "default": {},
           "type": "object",
           "properties": {
             "enabled": {
               "title": "Enabled",
-              "description": "Re-inject recently touched files after chat compaction.",
-              "markdownDescription": "Re-inject recently touched files after chat compaction.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `true`",
+              "description": "Master switch for the context ledger.",
+              "markdownDescription": "Master switch for the context ledger.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `true`",
               "default": true,
               "type": "boolean"
             },
-            "maxFiles": {
-              "title": "Maximum Files",
-              "description": "Maximum number of recently touched files to re-inject.",
-              "markdownDescription": "Maximum number of recently touched files to re-inject.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `10`",
-              "default": 10,
-              "type": "number"
-            },
-            "maxTokensPerFile": {
-              "title": "Maximum Tokens Per File",
-              "description": "Token budget for a single re-injected file. Larger files are truncated.",
-              "markdownDescription": "Token budget for a single re-injected file. Larger files are truncated.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `5000`",
-              "default": 5000,
-              "type": "number"
-            },
             "maxTokensTotal": {
               "title": "Maximum Tokens Total",
-              "description": "Total token budget across all re-injected files.",
-              "markdownDescription": "Total token budget across all re-injected files.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `50000`",
-              "default": 50000,
+              "description": "Token budget shared across every ledger adapter's block.",
+              "markdownDescription": "Token budget shared across every ledger adapter's block.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `80000`",
+              "default": 80000,
               "type": "number"
+            },
+            "adapters": {
+              "title": "Adapters",
+              "description": "Per-adapter enablement and budgets.",
+              "markdownDescription": "Per-adapter enablement and budgets.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `{}`",
+              "default": {},
+              "type": "object",
+              "properties": {
+                "files": {
+                  "title": "Files Adapter",
+                  "description": "Re-inject the content of recently touched files after chat compaction.",
+                  "markdownDescription": "Re-inject the content of recently touched files after chat compaction.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `{}`",
+                  "default": {},
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "title": "Enabled",
+                      "description": "Re-inject recently touched files after chat compaction.",
+                      "markdownDescription": "Re-inject recently touched files after chat compaction.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `true`",
+                      "default": true,
+                      "type": "boolean"
+                    },
+                    "maxEntries": {
+                      "title": "Maximum Files",
+                      "description": "Maximum number of recently touched files to re-inject.",
+                      "markdownDescription": "Maximum number of recently touched files to re-inject.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `10`",
+                      "default": 10,
+                      "type": "number"
+                    },
+                    "maxTokensPerEntry": {
+                      "title": "Maximum Tokens Per File",
+                      "description": "Token budget for a single re-injected file. Larger files are truncated.",
+                      "markdownDescription": "Token budget for a single re-injected file. Larger files are truncated.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `5000`",
+                      "default": 5000,
+                      "type": "number"
+                    },
+                    "maxTokens": {
+                      "title": "Maximum Tokens",
+                      "description": "Total token budget for the files adapter block.",
+                      "markdownDescription": "Total token budget for the files adapter block.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `50000`",
+                      "default": 50000,
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

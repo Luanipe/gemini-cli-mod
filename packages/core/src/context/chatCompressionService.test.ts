@@ -20,7 +20,8 @@ import type { Config } from '../config/config.js';
 import * as fileUtils from '../utils/fileUtils.js';
 import { getInitialChatHistory } from '../utils/environmentContext.js';
 import { FileReadStateTracker } from '../utils/fileReadState.js';
-import { DEFAULT_RECENT_FILE_REINJECTION } from './recentFileReinjection.js';
+import { ContextLedgerService } from './ledger/contextLedgerService.js';
+import { DEFAULT_LEDGER_SETTINGS } from './ledger/settings.js';
 
 const { TOOL_OUTPUTS_DIR } = fileUtils;
 import * as tokenCalculation from '../utils/tokenCalculation.js';
@@ -157,6 +158,7 @@ describe('ChatCompressionService', () => {
   let mockConfig: Config;
   let testTempDir: string;
   let fileReadState: FileReadStateTracker;
+  let ledgerService: ContextLedgerService;
   const mockModel = 'gemini-2.5-pro';
   const mockPromptId = 'test-prompt-id';
 
@@ -165,6 +167,7 @@ describe('ChatCompressionService', () => {
       path.join(os.tmpdir(), 'chat-compression-test-'),
     );
     fileReadState = new FileReadStateTracker();
+    ledgerService = new ContextLedgerService();
     service = new ChatCompressionService();
     mockChat = {
       getHistory: vi.fn(),
@@ -215,9 +218,10 @@ describe('ChatCompressionService', () => {
       },
       getApprovedPlanPath: vi.fn().mockReturnValue('/path/to/plan.md'),
       getFileReadState: vi.fn().mockReturnValue(fileReadState),
-      getRecentFileReinjection: vi
+      getContextLedger: () => ledgerService,
+      getLedgerSettings: vi
         .fn()
-        .mockReturnValue({ ...DEFAULT_RECENT_FILE_REINJECTION }),
+        .mockReturnValue({ ...DEFAULT_LEDGER_SETTINGS }),
     } as unknown as Config;
 
     vi.mocked(getInitialChatHistory).mockImplementation(
@@ -1472,8 +1476,8 @@ describe('ChatCompressionService', () => {
       const content = 'export const disabled = 1;';
       const filePath = writeTrackedFile('disabled.ts', content);
       await fileReadState.recordRead(filePath, content);
-      vi.mocked(mockConfig.getRecentFileReinjection).mockReturnValue({
-        ...DEFAULT_RECENT_FILE_REINJECTION,
+      vi.mocked(mockConfig.getLedgerSettings).mockReturnValue({
+        ...DEFAULT_LEDGER_SETTINGS,
         enabled: false,
       });
 
