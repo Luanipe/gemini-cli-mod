@@ -82,7 +82,15 @@ export interface ContextLedgerAdapter {
    * `false` so a forgotten disclaimer is still delimited centrally.
    */
   readonly selfLabelsTrust?: boolean;
-  /** Collects candidate entries. Content must be resolved, never summarized. */
+  /**
+   * Collects candidate entries. Content must be resolved, never summarized.
+   *
+   * The ledger skips an entry whose `content` is still verbatim in the
+   * preserved tail. That check is a substring match, so `content` must be
+   * verbatim and reasonably high-entropy: short, low-entropy payloads (for
+   * example a one-word user instruction) can be dropped spuriously and should
+   * not rely on this heuristic.
+   */
   collect(ctx: LedgerAdapterContext): Promise<ContextLedgerEntry[]>;
   /** Renders this adapter's labelled block from the entries the service kept. */
   serialize(entries: readonly ResolvedLedgerEntry[]): string;
