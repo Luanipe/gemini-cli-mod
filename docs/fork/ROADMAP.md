@@ -52,7 +52,8 @@ A task is `DONE` only when all of the following hold:
 
 ## Components
 
-**Current focus:** Anti-hallucination (AH) — finish AH-2 and AH-3.
+**Current focus:** Anti-hallucination (AH) — AH-5 context ledger (optional work
+pulled forward; AH-1/2/3 are DONE).
 
 Status is updated as work lands. "Evidence" points to the commit/PR that
 delivered the item. Per the legend, `DONE` means **merged**; implemented and
@@ -110,10 +111,9 @@ Improve tool-calling reliability.
 
 ## Backlog (optional)
 
-Recorded for future consideration. These items are **not scheduled** and do not
-affect the current focus. They extend the AH-3 file re-injection into a general,
-adapter-based context ledger; the shared foundation is AH-5 (#18), now in
-progress.
+Recorded for future consideration. These items are **not scheduled**; they
+extend the AH-3 file re-injection into a general, adapter-based context ledger.
+The shared foundation is AH-5 (#18), now in progress.
 
 | ID   | Item                                                      | Status   | Issue | Depends on |
 | ---- | --------------------------------------------------------- | -------- | ----- | ---------- |

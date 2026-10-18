@@ -1572,7 +1572,9 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: 80000,
             description: oneLine`
-              Token budget shared across every ledger adapter's block.
+              Token budget shared across every ledger adapter's block. Blocks
+              that do not fit are dropped so re-injection cannot inflate a
+              compaction.
             `,
             showInDialog: false,
           },

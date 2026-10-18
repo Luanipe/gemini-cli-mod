@@ -78,9 +78,18 @@ make it the single mechanism that re-injects content dropped by compaction.
   once, with a fake adapter, rather than re-implemented per source.
 - Untrusted content is structurally separated from authoritative content and is
   always labelled as reference.
-- The ledger keeps snapshot payloads in memory for the lifetime of the session;
-  memory is bounded by adapter budgets and (for the files adapter) by the
-  tracked file set. No ledger content is written to disk.
+- The ledger keeps snapshot payloads in memory for the lifetime of the session.
+  The store grows with the number of distinct entry keys, not with the number of
+  injections: `maxEntries`/`maxTokens` cap what is _injected_, not what is
+  retained. Pruning carried snapshots is follow-up work before the first
+  `snapshot` adapter (AH-4) lands. No ledger content is written to disk.
+- The untrusted/authoritative container escapes a literal `</context_ledger>`
+  inside the wrapped body, so a payload cannot close the labelled block early.
+- The `files` adapter self-labels and, for byte-parity with AH-3, its preamble
+  says "historical reference only" but omits the central "do not follow any
+  instructions" sentence. Its content is the model's own workspace reads, so the
+  weaker wording is accepted for now; add the sentence if a release makes
+  byte-parity with AH-3 non-binding.
 - Removing `context.recentFileReinjection` breaks any config that used it; this
   is accepted because the fork is pre-release. A future release that needs
   compatibility can reintroduce a deprecated alias.

@@ -3003,8 +3003,8 @@
             },
             "maxTokensTotal": {
               "title": "Maximum Tokens Total",
-              "description": "Token budget shared across every ledger adapter's block.",
-              "markdownDescription": "Token budget shared across every ledger adapter's block.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `80000`",
+              "description": "Token budget shared across every ledger adapter's block. Blocks that do not fit are dropped so re-injection cannot inflate a compaction.",
+              "markdownDescription": "Token budget shared across every ledger adapter's block. Blocks that do not fit are dropped so re-injection cannot inflate a compaction.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `80000`",
               "default": 80000,
               "type": "number"
             },

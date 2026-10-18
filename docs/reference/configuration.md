@@ -1785,6 +1785,8 @@ their corresponding top-level category object in your `settings.json` file.
 - **`context.ledger.maxTokensTotal`** (number):
 
   - **Description:** Token budget shared across every ledger adapter's block.
+    Blocks that do not fit are dropped so re-injection cannot inflate a
+    compaction.
   - **Default:** `80000`
   - **Requires restart:** Yes
 
