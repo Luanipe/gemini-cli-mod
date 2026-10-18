@@ -21,6 +21,7 @@ export class ContextLedgerRegistry {
     this.adapters.set(adapter.id, adapter);
   }
 
+  /** Returns a registered adapter by id. Intended for adapters and tests. */
   get(id: string): ContextLedgerAdapter | undefined {
     return this.adapters.get(id);
   }

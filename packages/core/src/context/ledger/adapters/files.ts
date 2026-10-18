@@ -12,6 +12,7 @@ import type {
 } from '../types.js';
 import type { LedgerAdapterSettings } from '../settings.js';
 import { normalizeLineEndings } from '../preservedText.js';
+import { escapeLedgerTag } from '../escaping.js';
 
 /** Id used as the settings key: `context.ledger.adapters.files`. */
 export const FILES_ADAPTER_ID = 'files';
@@ -45,9 +46,14 @@ again before editing.`;
 
 function formatBlock(entries: readonly ResolvedLedgerEntry[]): string {
   const sections = entries
-    .map(
-      (entry) => `### ${entry.entry.label}\n\`\`\`\n${entry.content}\n\`\`\``,
-    )
+    .map((entry) => {
+      // A file containing the block's own tag must not close it early.
+      const content = escapeLedgerTag(
+        entry.content,
+        RECENTLY_REFERENCED_FILES_TAG,
+      );
+      return `### ${entry.entry.label}\n\`\`\`\n${content}\n\`\`\``;
+    })
     .join('\n\n');
 
   return `<${RECENTLY_REFERENCED_FILES_TAG}>

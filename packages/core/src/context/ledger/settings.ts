@@ -61,22 +61,22 @@ export const DEFAULT_LEDGER_SETTINGS: LedgerSettings = {
 export function resolveLedgerSettings(
   partial?: PartialLedgerSettings,
 ): LedgerSettings {
-  const adapters: Record<string, LedgerAdapterSettings> = {};
+  const adapters = new Map<string, LedgerAdapterSettings>();
   for (const [id, defaults] of Object.entries(
     DEFAULT_LEDGER_SETTINGS.adapters,
   )) {
-    adapters[id] = { ...defaults, ...(partial?.adapters?.[id] ?? {}) };
+    adapters.set(id, { ...defaults, ...(partial?.adapters?.[id] ?? {}) });
   }
   // Keep any unknown adapters the caller supplied (future-proofing).
   for (const [id, settings] of Object.entries(partial?.adapters ?? {})) {
-    if (!adapters[id]) {
-      adapters[id] = { enabled: false, maxTokens: 0, ...settings };
+    if (!adapters.has(id)) {
+      adapters.set(id, { enabled: false, maxTokens: 0, ...settings });
     }
   }
   return {
     enabled: partial?.enabled ?? DEFAULT_LEDGER_SETTINGS.enabled,
     maxTokensTotal:
       partial?.maxTokensTotal ?? DEFAULT_LEDGER_SETTINGS.maxTokensTotal,
-    adapters,
+    adapters: Object.fromEntries(adapters),
   };
 }

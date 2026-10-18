@@ -7,6 +7,7 @@
 export * from './types.js';
 export * from './settings.js';
 export * from './registry.js';
+export { escapeLedgerTag } from './escaping.js';
 export { ContextLedgerService } from './contextLedgerService.js';
 export {
   FILES_ADAPTER_ID,
