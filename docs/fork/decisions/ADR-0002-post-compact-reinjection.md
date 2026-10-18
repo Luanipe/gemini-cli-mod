@@ -1,8 +1,13 @@
 # ADR-0002: Post-compaction re-injection of recently touched files
 
-- **Status:** accepted
+- **Status:** superseded by ADR-0003
 - **Date:** 2026-10-17
 - **Component:** anti-hallucination
+
+> **Superseded by [ADR-0003](./ADR-0003-context-ledger.md).** The behaviour
+> described here is retained and now lives in the context ledger's `files`
+> adapter. The `context.recentFileReinjection` settings were replaced by
+> `context.ledger.adapters.files`.
 
 ## Context
 
