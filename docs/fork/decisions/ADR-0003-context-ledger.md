@@ -73,7 +73,10 @@ make it the single mechanism that re-injects content dropped by compaction.
 
 - One extension point: adding a retrieval source (AH-6/7/8) or the user
   instruction ledger (AH-4) is "write an adapter and register it" plus a
-  settings sub-object; no changes to `ChatCompressionService`.
+  settings sub-object; no changes to `ChatCompressionService`. Adapters that
+  self-label (`selfLabelsTrust`) must escape their own container tag with the
+  exported `escapeLedgerTag` helper; the ledger already escapes `context_ledger`
+  centrally.
 - The "already present" skip, ordering, dedupe and budgets are shared and tested
   once, with a fake adapter, rather than re-implemented per source.
 - Untrusted content is structurally separated from authoritative content and is
@@ -86,7 +89,13 @@ make it the single mechanism that re-injects content dropped by compaction.
 - Opening and closing `context_ledger` tags are escaped in every rendered body
   (wrapped or self-labelled), so a payload can neither close nor spoof the
   container. The `files` adapter additionally escapes its own
-  `recently_referenced_files` tags inside file content.
+  `recently_referenced_files` tags in file content and labels.
+- Escaping means re-injected content is verbatim _except_ for ledger container
+  tags, which are rendered as HTML entities. A file (or future URL/MCP URI) that
+  quotes `<context_ledger>` or `<recently_referenced_files>` hence appears
+  entity-escaped; this is a deliberate trade-off for container integrity, and
+  the main reason the ledger module's own sources are edited directly rather
+  than from a re-injected copy.
 - The central default `maxTokensTotal` is 80k (AH-3 used 50k as the files
   budget). The files block keeps its own 50k budget, which the central ceiling
   cannot reach, so effective files behaviour is unchanged.
