@@ -20,10 +20,6 @@ import {
 import { debugLogger } from '../utils/debugLogger.js';
 import { getInitialChatHistory } from '../utils/environmentContext.js';
 import {
-  buildRecentFileReinjection,
-  DEFAULT_RECENT_FILE_REINJECTION,
-} from './recentFileReinjection.js';
-import {
   calculateRequestTokenCount,
   estimateTokenCountSync,
 } from '../utils/tokenCalculation.js';
@@ -468,32 +464,20 @@ async function truncateHistoryToBudget(
 }
 
 /**
- * Builds the post-compaction re-injection turn for recently touched files, or
- * null when there is nothing to re-inject. Re-reads content from disk and skips
- * files whose content is still verbatim in the preserved tail (AH-3).
+ * Builds the post-compaction re-injection turn from the session context ledger,
+ * or null when there is nothing to re-inject. The ledger re-reads/fetches each
+ * adapter's current content and skips entries still verbatim in the preserved
+ * tail (AH-5, generalizing AH-3).
  */
-async function buildReinjectionTurn(
+async function buildLedgerTurn(
   config: Config,
   preservedHistory: readonly Content[],
 ): Promise<Content | null> {
-  const settings =
-    config.getRecentFileReinjection?.() ?? DEFAULT_RECENT_FILE_REINJECTION;
-  if (!settings.enabled) {
+  const ledger = config.getContextLedger?.();
+  if (!ledger) {
     return null;
   }
-  const tracker = config.getFileReadState?.();
-  if (!tracker) {
-    return null;
-  }
-  const records = tracker.recentlyTouched(settings.maxFiles);
-  if (records.length === 0) {
-    return null;
-  }
-  const result = await buildRecentFileReinjection(
-    records,
-    preservedHistory,
-    settings,
-  );
+  const result = await ledger.build(config, preservedHistory);
   return result.content;
 }
 
@@ -583,12 +567,9 @@ export class ChatCompressionService {
 
       // If truncation reduced the size, we consider it a successful "compression" (truncation only).
       if (truncatedTokenCount < originalTokenCount) {
-        // Re-inject recently touched files whose content was dropped by the
-        // truncation, placed right after the environment context (AH-3).
-        const reinjection = await buildReinjectionTurn(
-          config,
-          truncatedHistory,
-        );
+        // Re-inject content dropped by the truncation via the context ledger,
+        // placed right after the environment context (AH-3/AH-5).
+        const reinjection = await buildLedgerTurn(config, truncatedHistory);
         let newHistory = reinjection
           ? insertAfterEnvContext(truncatedHistory, reinjection)
           : truncatedHistory;
@@ -730,10 +711,7 @@ export class ChatCompressionService {
       };
     }
 
-    const reinjection = await buildReinjectionTurn(
-      config,
-      historyToKeepTruncated,
-    );
+    const reinjection = await buildLedgerTurn(config, historyToKeepTruncated);
 
     const buildExtraHistory = (includeReinjection: boolean): Content[] => [
       ...(includeReinjection && reinjection ? [reinjection] : []),

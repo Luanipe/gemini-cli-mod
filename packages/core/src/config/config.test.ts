@@ -20,7 +20,7 @@ import {
   type SandboxConfig,
 } from './config.js';
 import { createMockSandboxConfig } from '@google/gemini-cli-test-utils';
-import { DEFAULT_RECENT_FILE_REINJECTION } from '../context/recentFileReinjection.js';
+import { DEFAULT_LEDGER_SETTINGS } from '../context/ledger/settings.js';
 import { DEFAULT_MAX_ATTEMPTS } from '../utils/retry.js';
 import { ExperimentFlags } from '../code_assist/experiments/flagNames.js';
 import { debugLogger } from '../utils/debugLogger.js';
@@ -335,23 +335,24 @@ describe('Server Config (config.ts)', () => {
     });
   });
 
-  describe('recentFileReinjection', () => {
+  describe('contextLedger', () => {
     it('should default to the built-in budgets', () => {
       const config = new Config(baseParams);
-      expect(config.getRecentFileReinjection()).toEqual(
-        DEFAULT_RECENT_FILE_REINJECTION,
-      );
+      expect(config.getLedgerSettings()).toEqual(DEFAULT_LEDGER_SETTINGS);
     });
 
     it('should merge partial overrides over the defaults', () => {
       const config = new Config({
         ...baseParams,
-        recentFileReinjection: { maxFiles: 3 },
+        contextLedger: {
+          adapters: { files: { maxEntries: 3 } },
+        },
       });
-      expect(config.getRecentFileReinjection()).toEqual({
-        ...DEFAULT_RECENT_FILE_REINJECTION,
-        maxFiles: 3,
-      });
+      const settings = config.getLedgerSettings();
+      expect(settings.adapters['files'].maxEntries).toBe(3);
+      expect(settings.adapters['files'].maxTokens).toBe(
+        DEFAULT_LEDGER_SETTINGS.adapters['files'].maxTokens,
+      );
     });
   });
 

@@ -152,17 +152,22 @@ describe('SettingsSchema', () => {
       ).toBe('array');
     });
 
-    it('should have recentFileReinjection nested properties', () => {
-      const properties =
-        getSettingsSchema().context.properties.recentFileReinjection.properties;
-      expect(properties?.enabled.type).toBe('boolean');
-      expect(properties?.enabled.default).toBe(true);
-      expect(properties?.maxFiles.type).toBe('number');
-      expect(properties?.maxFiles.default).toBe(10);
-      expect(properties?.maxTokensPerFile.type).toBe('number');
-      expect(properties?.maxTokensPerFile.default).toBe(5000);
-      expect(properties?.maxTokensTotal.type).toBe('number');
-      expect(properties?.maxTokensTotal.default).toBe(50000);
+    it('should have context ledger nested properties', () => {
+      const ledger = getSettingsSchema().context.properties.ledger.properties;
+      expect(ledger?.enabled.type).toBe('boolean');
+      expect(ledger?.enabled.default).toBe(true);
+      expect(ledger?.maxTokensTotal.type).toBe('number');
+      expect(ledger?.maxTokensTotal.default).toBe(80000);
+
+      const files = ledger?.adapters.properties?.files.properties;
+      expect(files?.enabled.type).toBe('boolean');
+      expect(files?.enabled.default).toBe(true);
+      expect(files?.maxEntries.type).toBe('number');
+      expect(files?.maxEntries.default).toBe(10);
+      expect(files?.maxTokensPerEntry.type).toBe('number');
+      expect(files?.maxTokensPerEntry.default).toBe(5000);
+      expect(files?.maxTokens.type).toBe('number');
+      expect(files?.maxTokens.default).toBe(50000);
     });
 
     it('should have unique categories', () => {

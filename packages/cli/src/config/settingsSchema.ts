@@ -1542,15 +1542,15 @@ const SETTINGS_SCHEMA = {
           },
         },
       },
-      recentFileReinjection: {
+      ledger: {
         type: 'object',
-        label: 'Recent File Re-injection',
+        label: 'Context Ledger',
         category: 'Context',
         requiresRestart: true,
         default: {},
         description: oneLine`
-          Re-inject the content of recently touched files after the conversation
-          is compressed, so the model is not reasoning from a summary alone.
+          Re-inject content dropped by chat compaction through pluggable
+          adapters, so the model is not reasoning from a summary alone.
         `,
         showInDialog: false,
         properties: {
@@ -1561,30 +1561,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: true,
             description: oneLine`
-              Re-inject recently touched files after chat compaction.
-            `,
-            showInDialog: false,
-          },
-          maxFiles: {
-            type: 'number',
-            label: 'Maximum Files',
-            category: 'Context',
-            requiresRestart: true,
-            default: 10,
-            description: oneLine`
-              Maximum number of recently touched files to re-inject.
-            `,
-            showInDialog: false,
-          },
-          maxTokensPerFile: {
-            type: 'number',
-            label: 'Maximum Tokens Per File',
-            category: 'Context',
-            requiresRestart: true,
-            default: 5000,
-            description: oneLine`
-              Token budget for a single re-injected file. Larger files are
-              truncated.
+              Master switch for the context ledger.
             `,
             showInDialog: false,
           },
@@ -1593,11 +1570,85 @@ const SETTINGS_SCHEMA = {
             label: 'Maximum Tokens Total',
             category: 'Context',
             requiresRestart: true,
-            default: 50000,
+            default: 80000,
             description: oneLine`
-              Total token budget across all re-injected files.
+              Token budget shared across every ledger adapter's block. Blocks
+              that do not fit are dropped so re-injection cannot inflate a
+              compaction.
             `,
             showInDialog: false,
+          },
+          adapters: {
+            type: 'object',
+            label: 'Adapters',
+            category: 'Context',
+            requiresRestart: true,
+            default: {},
+            description: oneLine`
+              Per-adapter enablement and budgets.
+            `,
+            showInDialog: false,
+            properties: {
+              files: {
+                type: 'object',
+                label: 'Files Adapter',
+                category: 'Context',
+                requiresRestart: true,
+                default: {},
+                description: oneLine`
+                  Re-inject the content of recently touched files after chat
+                  compaction.
+                `,
+                showInDialog: false,
+                properties: {
+                  enabled: {
+                    type: 'boolean',
+                    label: 'Enabled',
+                    category: 'Context',
+                    requiresRestart: true,
+                    default: true,
+                    description: oneLine`
+                      Re-inject recently touched files after chat compaction.
+                    `,
+                    showInDialog: false,
+                  },
+                  maxEntries: {
+                    type: 'number',
+                    label: 'Maximum Files',
+                    category: 'Context',
+                    requiresRestart: true,
+                    default: 10,
+                    description: oneLine`
+                      Maximum number of recently touched files to re-inject.
+                    `,
+                    showInDialog: false,
+                  },
+                  maxTokensPerEntry: {
+                    type: 'number',
+                    label: 'Maximum Tokens Per File',
+                    category: 'Context',
+                    requiresRestart: true,
+                    default: 5000,
+                    description: oneLine`
+                      Token budget for a single re-injected file. Larger files
+                      are truncated.
+                    `,
+                    showInDialog: false,
+                  },
+                  maxTokens: {
+                    type: 'number',
+                    label: 'Maximum Tokens',
+                    category: 'Context',
+                    requiresRestart: true,
+                    default: 50000,
+                    description: oneLine`
+                      Total token budget for the files adapter block.
+                    `,
+                    showInDialog: false,
+                  },
+                },
+              },
+            },
           },
         },
       },

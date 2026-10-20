@@ -972,7 +972,7 @@ export async function loadCliConfig(
     discoveryMaxDirs: settings.context?.discoveryMaxDirs,
     memoryBoundaryMarkers: settings.context?.memoryBoundaryMarkers,
     importFormat: settings.context?.importFormat,
-    recentFileReinjection: settings.context?.recentFileReinjection,
+    contextLedger: settings.context?.ledger,
     debugMode,
     question,
     worktreeSettings,

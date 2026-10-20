@@ -52,7 +52,9 @@ A task is `DONE` only when all of the following hold:
 
 ## Components
 
-**Current focus:** Anti-hallucination (AH) — finish AH-2 and AH-3.
+**Current focus:** Anti-hallucination (AH) — AH-5 context ledger delivered
+(optional work pulled forward; AH-1/2/3/5 are DONE). The remaining AH items are
+optional backlog.
 
 Status is updated as work lands. "Evidence" points to the commit/PR that
 delivered the item. Per the legend, `DONE` means **merged**; implemented and
@@ -77,6 +79,7 @@ silently dropped from the window.
 | AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | #1    | `feat/read-before-edit`                              | #12 | `8754ff17d` |
 | AH-2 | Compaction circuit breaker + cooldown                   | DONE   | #2    | `feat/anti-hallucination-compaction-circuit-breaker` | #15 | `67c354349` |
 | AH-3 | Post-compact re-injection of recently touched files     | DONE   | #3    | `feat/anti-hallucination-post-compact-reinjection`   | #17 | `26159036f` |
+| AH-5 | Central context ledger + adapter framework              | DONE   | #18   | `feat/anti-hallucination-context-ledger`             | #23 | `06ca2102a` |
 
 ### Harness
 
@@ -109,17 +112,20 @@ Improve tool-calling reliability.
 
 ## Backlog (optional)
 
-Recorded for future consideration. These items are **not scheduled** and do not
-affect the current focus. They extend the AH-3 file re-injection into a general,
-adapter-based context ledger; the shared foundation is AH-5.
+Recorded for future consideration. These items are **not scheduled**; they
+extend the AH-3 file re-injection into a general, adapter-based context ledger.
+The shared foundation is AH-5 (#18), now delivered.
 
 | ID   | Item                                                      | Status   | Issue | Depends on |
 | ---- | --------------------------------------------------------- | -------- | ----- | ---------- |
 | AH-4 | Compaction-safe user instruction ledger                   | OPTIONAL | #16   | AH-5       |
-| AH-5 | Central context ledger + adapter framework                | OPTIONAL | #18   |            |
 | AH-6 | Retrieval ledger adapter: grep / ripgrep / glob / search  | OPTIONAL | #19   | AH-5       |
 | AH-7 | Retrieval ledger adapter: MCP tools / `read_mcp_resource` | OPTIONAL | #20   | AH-5       |
 | AH-8 | Retrieval ledger adapter: webfetch / web search           | OPTIONAL | #21   | AH-5       |
+| AH-9 | Context ledger maintenance follow-ups                     | OPTIONAL | #24   | AH-5       |
+
+Ledger maintenance follow-ups (snapshot pruning, session reset, per-adapter
+skip) are tracked in AH-9 (#24).
 
 ## Decision records
 
@@ -130,4 +136,6 @@ Decisions that are hard to reverse or that need context are recorded as ADRs in
 - [ADR-0001](./decisions/ADR-0001-read-before-edit-hard-fail.md) —
   read-before-edit enforcement is a hard failure.
 - [ADR-0002](./decisions/ADR-0002-post-compact-reinjection.md) — post-compaction
-  re-injection of recently touched files.
+  re-injection of recently touched files (superseded by ADR-0003).
+- [ADR-0003](./decisions/ADR-0003-context-ledger.md) — context ledger with
+  pluggable re-injection adapters.
