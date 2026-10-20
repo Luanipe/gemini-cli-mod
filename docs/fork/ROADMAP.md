@@ -53,9 +53,9 @@ A task is `DONE` only when all of the following hold:
 ## Components
 
 **Current focus:** Anti-hallucination (AH) — AH-1/2/3/5/9 are DONE. AH-4 (user
-instruction ledger) is implemented on
-`feat/anti-hallucination-user-instruction-ledger` and under validation. The
-remaining AH items (AH-6/7/8) are optional backlog.
+instruction ledger) is in review in PR #27 on
+`feat/anti-hallucination-user-instruction-ledger`. The remaining AH items
+(AH-6/7/8) are optional backlog.
 
 Status is updated as work lands. "Evidence" points to the commit/PR that
 delivered the item. Per the legend, `DONE` means **merged**; implemented and
@@ -82,7 +82,7 @@ silently dropped from the window.
 | AH-3 | Post-compact re-injection of recently touched files     | DONE   | #3    | `feat/anti-hallucination-post-compact-reinjection`   | #17 | `26159036f` |
 | AH-5 | Central context ledger + adapter framework              | DONE   | #18   | `feat/anti-hallucination-context-ledger`             | #23 | `06ca2102a` |
 | AH-9 | Context ledger maintenance follow-ups                   | DONE   | #24   | `feat/anti-hallucination-ledger-maintenance`         | #25 | `2bb6d7596` |
-| AH-4 | Compaction-safe user instruction ledger                 | WIP    | #16   | `feat/anti-hallucination-user-instruction-ledger`    |     | `0f5d910ab` |
+| AH-4 | Compaction-safe user instruction ledger                 | REVIEW | #16   | `feat/anti-hallucination-user-instruction-ledger`    | #27 | `0f5d910ab` |
 
 AH-4's 20-request recall scenario is covered at the adapter level
 (`userInstructions.test.ts`). A model-level eval is pending because the eval
