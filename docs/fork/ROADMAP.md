@@ -52,8 +52,9 @@ A task is `DONE` only when all of the following hold:
 
 ## Components
 
-**Current focus:** Anti-hallucination (AH) — AH-5 context ledger (optional work
-pulled forward; AH-1/2/3 are DONE).
+**Current focus:** Anti-hallucination (AH) — AH-5 context ledger delivered
+(optional work pulled forward; AH-1/2/3/5 are DONE). The remaining AH items are
+optional backlog.
 
 Status is updated as work lands. "Evidence" points to the commit/PR that
 delivered the item. Per the legend, `DONE` means **merged**; implemented and
@@ -78,7 +79,7 @@ silently dropped from the window.
 | AH-1 | Read-before-edit guard (hard-fail) + invalidation hooks | DONE   | #1    | `feat/read-before-edit`                              | #12 | `8754ff17d` |
 | AH-2 | Compaction circuit breaker + cooldown                   | DONE   | #2    | `feat/anti-hallucination-compaction-circuit-breaker` | #15 | `67c354349` |
 | AH-3 | Post-compact re-injection of recently touched files     | DONE   | #3    | `feat/anti-hallucination-post-compact-reinjection`   | #17 | `26159036f` |
-| AH-5 | Central context ledger + adapter framework              | REVIEW | #18   | `feat/anti-hallucination-context-ledger`             | #23 | `06ca2102a` |
+| AH-5 | Central context ledger + adapter framework              | DONE   | #18   | `feat/anti-hallucination-context-ledger`             | #23 | `06ca2102a` |
 
 ### Harness
 
@@ -113,7 +114,7 @@ Improve tool-calling reliability.
 
 Recorded for future consideration. These items are **not scheduled**; they
 extend the AH-3 file re-injection into a general, adapter-based context ledger.
-The shared foundation is AH-5 (#18), now in review.
+The shared foundation is AH-5 (#18), now delivered.
 
 | ID   | Item                                                      | Status   | Issue | Depends on |
 | ---- | --------------------------------------------------------- | -------- | ----- | ---------- |
