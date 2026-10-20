@@ -47,14 +47,15 @@ Extend the ledger input and add a dedicated adapter for user requests.
   chronological order and verbatim. Filtering is **per part**: a multi-part turn
   keeps only its instruction-looking parts, joined into one request. Tool
   results (`functionResponse` parts) and model turns are excluded. A part is
-  also excluded when it contains a machine-generated marker:
-  `<session_context>`, `<state_snapshot` (including a summary preceded by
-  `<scratchpad>`), `<scratchpad`, `<loaded_context>`, `<project_context>`,
+  excluded when it starts with a machine-generated container tag
+  (`<session_context>`, `<loaded_context>`, `<project_context>`,
   `<extension_context>`, `<global_context>`, `<hook_context>`,
   `<background_output>`, `<context_ledger`, `<user_instruction_log>` or
-  `<recently_referenced_files>`; or when it starts with a known synthetic prose
-  prefix (IDE context, directory context, user/steering hints, background
-  completion, local-executor final warning, history-hardening sentinels).
+  `<recently_referenced_files>`, after an optional `---` separator), when it
+  contains `<state_snapshot` or `<scratchpad` (including a summary preceded by a
+  scratchpad), or when it starts with a known synthetic prose prefix (IDE
+  context, directory context, user/steering hints, background completion,
+  local-executor warnings, history-hardening sentinels).
 - **Rendering.** A `<user_instruction_log>` block with numbered `### Request N`
   sections, chronological. The adapter escapes its own container tag; the ledger
   escapes `<context_ledger>` centrally. No ledger content is written to disk.
