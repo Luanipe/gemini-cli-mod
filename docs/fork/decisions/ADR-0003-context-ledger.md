@@ -78,6 +78,13 @@ make it the single mechanism that re-injects content dropped by compaction.
   self-label (`selfLabelsTrust`) must escape their own container tag with the
   exported `escapeLedgerTag` helper; the ledger already escapes `context_ledger`
   centrally.
+- **Addendum (AH-4, ADR-0004).** Adapters now also receive `droppedHistory`, the
+  segment a compaction replaces, so snapshot adapters such as `userInstructions`
+  can capture content that has no reproducible local source. The ledger turn now
+  follows the `<state_snapshot>` and its acknowledgement, before the preserved
+  tail, instead of preceding the summary; `reset()` is forwarded to adapters so
+  they can clear their own session state. See
+  [ADR-0004](./ADR-0004-user-instruction-ledger.md).
 - The "already present" skip, ordering, dedupe and budgets are shared and tested
   once, with a fake adapter, rather than re-implemented per source.
 - Untrusted content is structurally separated from authoritative content and is

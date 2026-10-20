@@ -1648,6 +1648,66 @@ const SETTINGS_SCHEMA = {
                   },
                 },
               },
+              userInstructions: {
+                type: 'object',
+                label: 'User Instructions Adapter',
+                category: 'Context',
+                requiresRestart: true,
+                default: {},
+                description: oneLine`
+                  Preserve the user's earlier requests verbatim across chat
+                  compaction.
+                `,
+                showInDialog: false,
+                properties: {
+                  enabled: {
+                    type: 'boolean',
+                    label: 'Enabled',
+                    category: 'Context',
+                    requiresRestart: true,
+                    default: false,
+                    description: oneLine`
+                      Re-inject a chronological log of the user's earlier
+                      requests after chat compaction.
+                    `,
+                    showInDialog: false,
+                  },
+                  maxEntries: {
+                    type: 'number',
+                    label: 'Maximum Instructions',
+                    category: 'Context',
+                    requiresRestart: true,
+                    default: 100,
+                    description: oneLine`
+                      Maximum number of user requests retained in the log.
+                    `,
+                    showInDialog: false,
+                  },
+                  maxTokensPerEntry: {
+                    type: 'number',
+                    label: 'Maximum Tokens Per Instruction',
+                    category: 'Context',
+                    requiresRestart: true,
+                    default: 2000,
+                    description: oneLine`
+                      Token budget for a single user request. Longer requests
+                      are truncated.
+                    `,
+                    showInDialog: false,
+                  },
+                  maxTokens: {
+                    type: 'number',
+                    label: 'Maximum Tokens',
+                    category: 'Context',
+                    requiresRestart: true,
+                    default: 12000,
+                    description: oneLine`
+                      Total token budget for the user instruction log.
+                    `,
+                    showInDialog: false,
+                  },
+                },
+              },
             },
           },
         },

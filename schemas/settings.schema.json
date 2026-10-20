@@ -3052,6 +3052,44 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "userInstructions": {
+                  "title": "User Instructions Adapter",
+                  "description": "Preserve the user's earlier requests verbatim across chat compaction.",
+                  "markdownDescription": "Preserve the user's earlier requests verbatim across chat compaction.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `{}`",
+                  "default": {},
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "title": "Enabled",
+                      "description": "Re-inject a chronological log of the user's earlier requests after chat compaction.",
+                      "markdownDescription": "Re-inject a chronological log of the user's earlier requests after chat compaction.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `false`",
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "maxEntries": {
+                      "title": "Maximum Instructions",
+                      "description": "Maximum number of user requests retained in the log.",
+                      "markdownDescription": "Maximum number of user requests retained in the log.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `100`",
+                      "default": 100,
+                      "type": "number"
+                    },
+                    "maxTokensPerEntry": {
+                      "title": "Maximum Tokens Per Instruction",
+                      "description": "Token budget for a single user request. Longer requests are truncated.",
+                      "markdownDescription": "Token budget for a single user request. Longer requests are truncated.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `2000`",
+                      "default": 2000,
+                      "type": "number"
+                    },
+                    "maxTokens": {
+                      "title": "Maximum Tokens",
+                      "description": "Total token budget for the user instruction log.",
+                      "markdownDescription": "Total token budget for the user instruction log.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `12000`",
+                      "default": 12000,
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
                 }
               },
               "additionalProperties": false

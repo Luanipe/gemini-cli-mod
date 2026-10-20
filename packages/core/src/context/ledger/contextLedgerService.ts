@@ -89,11 +89,22 @@ export class ContextLedgerService {
   /** Drops all carried (snapshot) state. Intended for tests and resets. */
   reset(): void {
     this.carry.clear();
+    for (const adapter of this.registry.list()) {
+      try {
+        adapter.reset?.();
+      } catch (error) {
+        debugLogger.debug(
+          `Context ledger adapter "${adapter.id}" failed to reset`,
+          error,
+        );
+      }
+    }
   }
 
   async build(
     config: Config,
     preservedHistory: readonly Content[],
+    droppedHistory: readonly Content[] = [],
   ): Promise<ContextLedgerBuildResult> {
     const result: ContextLedgerBuildResult = {
       content: null,
@@ -132,7 +143,13 @@ export class ContextLedgerService {
           continue;
         }
 
-        await this.collect(adapter, config, preservedHistory, adapterSettings);
+        await this.collect(
+          adapter,
+          config,
+          preservedHistory,
+          droppedHistory,
+          adapterSettings,
+        );
 
         let entries = this.entriesFor(adapter.id);
         if (adapterSettings.maxEntries !== undefined) {
@@ -196,11 +213,13 @@ export class ContextLedgerService {
     adapter: ContextLedgerAdapter,
     config: Config,
     preservedHistory: readonly Content[],
+    droppedHistory: readonly Content[],
     settings: LedgerAdapterSettings,
   ): Promise<void> {
     const context: LedgerAdapterContext = {
       config,
       preservedHistory,
+      droppedHistory,
       settings,
     };
     let collected: ContextLedgerEntry[];

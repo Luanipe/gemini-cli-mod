@@ -48,7 +48,7 @@ export interface ContextLedgerEntry {
   readonly key: string;
   readonly kind: LedgerKind;
   readonly trust: LedgerTrust;
-  /** Ordering within the adapter, ascending (most recent first is `0`). */
+  /** Ordering within the adapter, ascending (lower is more recent). */
   readonly order: number;
   /** Human-readable label rendered next to the content (path, url, tool...). */
   readonly label: string;
@@ -72,6 +72,13 @@ export interface LedgerAdapterContext {
   readonly config: Config;
   /** History that survives this compaction; used to skip already-present content. */
   readonly preservedHistory: readonly Content[];
+  /**
+   * The truncated segment this compaction drops. The summarizer receives the
+   * untruncated original when it fits the model limit, so retrieval adapters
+   * must expect already-truncated tool output. Adapters that capture content
+   * which has no reproducible local source use it as their input.
+   */
+  readonly droppedHistory: readonly Content[];
   /** Resolved settings for this adapter (budgets, enablement). */
   readonly settings: LedgerAdapterSettings;
 }
@@ -101,6 +108,12 @@ export interface ContextLedgerAdapter {
    * preserved tail. Defaults to `verbatim`; see {@link LedgerPresentCheck}.
    */
   readonly skipPresent?: LedgerPresentCheck;
+  /**
+   * Clears adapter-owned state when the ledger is reset (for example on a
+   * session change or when the master switch turns off). Optional: adapters
+   * that keep no state may omit it.
+   */
+  reset?(): void;
   /**
    * Collects candidate entries. Content must be resolved, never summarized; it
    * is rendered verbatim except that ledger container tags are neutralized

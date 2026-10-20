@@ -17,3 +17,12 @@ export {
   DEFAULT_FILES_ADAPTER_SETTINGS,
   createFilesAdapter,
 } from './adapters/files.js';
+export {
+  USER_INSTRUCTIONS_ADAPTER_ID,
+  USER_INSTRUCTION_LOG_TAG,
+  PER_INSTRUCTION_TRUNCATION_MARKER,
+  USER_INSTRUCTIONS_BLOCK_TRUNCATION_MARKER,
+  DEFAULT_USER_INSTRUCTIONS_ADAPTER_SETTINGS,
+  collectUserInstructions,
+  createUserInstructionsAdapter,
+} from './adapters/userInstructions.js';

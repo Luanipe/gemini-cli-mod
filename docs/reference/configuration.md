@@ -1810,8 +1810,34 @@ their corresponding top-level category object in your `settings.json` file.
   - **Requires restart:** Yes
 
 - **`context.ledger.adapters.files.maxTokens`** (number):
+
   - **Description:** Total token budget for the files adapter block.
   - **Default:** `50000`
+  - **Requires restart:** Yes
+
+- **`context.ledger.adapters.userInstructions.enabled`** (boolean):
+
+  - **Description:** Re-inject a chronological log of the user's earlier
+    requests after chat compaction.
+  - **Default:** `false`
+  - **Requires restart:** Yes
+
+- **`context.ledger.adapters.userInstructions.maxEntries`** (number):
+
+  - **Description:** Maximum number of user requests retained in the log.
+  - **Default:** `100`
+  - **Requires restart:** Yes
+
+- **`context.ledger.adapters.userInstructions.maxTokensPerEntry`** (number):
+
+  - **Description:** Token budget for a single user request. Longer requests are
+    truncated.
+  - **Default:** `2000`
+  - **Requires restart:** Yes
+
+- **`context.ledger.adapters.userInstructions.maxTokens`** (number):
+  - **Description:** Total token budget for the user instruction log.
+  - **Default:** `12000`
   - **Requires restart:** Yes
 
 #### `tools`
