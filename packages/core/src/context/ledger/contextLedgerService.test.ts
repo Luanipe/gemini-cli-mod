@@ -43,7 +43,7 @@ function fakeAdapter(options: FakeOptions): ContextLedgerAdapter {
       return options.entries().map((entry, index) => ({
         adapterId: options.id,
         key: entry.key ?? `k${index}`,
-        kind: options.kind ?? 'snapshot',
+        kind: entry.kind ?? options.kind ?? 'snapshot',
         trust: options.trust ?? 'untrusted',
         order: entry.order ?? index,
         label: entry.label ?? `entry-${index}`,
@@ -427,6 +427,68 @@ describe('ContextLedgerService', () => {
 
     expect(second.injectedKeys).toEqual(['a:keep']);
     expect(second.content!.parts![0].text!).not.toContain('DROP');
+  });
+
+  it('bounds snapshots by adapter kind even when entry kind disagrees', async () => {
+    settings = resolveLedgerSettings({
+      adapters: { a: { enabled: true, maxTokens: 10_000, maxEntries: 1 } },
+    });
+    const registry = new ContextLedgerRegistry();
+    let entries: Array<Partial<ContextLedgerEntry> & { content: string }> = [
+      { key: 'keep', content: 'KEEP', order: 0, kind: 'reference' },
+      { key: 'drop', content: 'DROP', order: 1, kind: 'reference' },
+    ];
+    registry.register(
+      fakeAdapter({
+        id: 'a',
+        order: 0,
+        kind: 'snapshot',
+        entries: () => entries,
+      }),
+    );
+    const service = new ContextLedgerService(registry);
+    const config = makeConfig(settings);
+
+    await service.build(config, []);
+    entries = [];
+    settings.adapters['a'].maxEntries = undefined;
+    const second = await service.build(config, []);
+
+    expect(second.injectedKeys).toEqual(['a:keep']);
+  });
+
+  it('prunes carried state even when serialization throws', async () => {
+    settings = resolveLedgerSettings({
+      adapters: { a: { enabled: true, maxTokens: 10_000, maxEntries: 1 } },
+    });
+    const registry = new ContextLedgerRegistry();
+    let entries: Array<Partial<ContextLedgerEntry> & { content: string }> = [
+      { key: 'keep', content: 'KEEP', order: 0 },
+      { key: 'drop', content: 'DROP', order: 1 },
+    ];
+    const adapter = fakeAdapter({
+      id: 'a',
+      order: 0,
+      kind: 'snapshot',
+      entries: () => entries,
+    });
+    registry.register({
+      ...adapter,
+      serialize() {
+        throw new Error('serialize failed');
+      },
+    });
+    const service = new ContextLedgerService(registry);
+    const config = makeConfig(settings);
+
+    await expect(service.build(config, [])).rejects.toThrow('serialize failed');
+
+    entries = [];
+    settings.adapters['a'].maxEntries = undefined;
+    // Restore a non-throwing serializer for the second build.
+    registry.get('a')!.serialize = adapter.serialize;
+    const second = await service.build(config, []);
+    expect(second.injectedKeys).toEqual(['a:keep']);
   });
 
   it('bounds carried snapshots with the default cap when maxEntries is unset', async () => {

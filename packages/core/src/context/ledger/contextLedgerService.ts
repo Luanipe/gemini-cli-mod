@@ -34,8 +34,9 @@ function keyOf(entry: ContextLedgerEntry): string {
 
 /**
  * Default cap on snapshot entries retained in memory per adapter. Snapshots
- * cannot be reproduced, so they are carried forward; this bound (or a lower
- * `maxEntries`) keeps a long-lived session from retaining every distinct key.
+ * cannot be reproduced, so they are carried forward; `maxEntries` when set
+ * (otherwise this default) keeps a long-lived session from retaining every
+ * distinct key. The bound is per entry; adapters own the size of each payload.
  */
 export const DEFAULT_MAX_CARRIED_SNAPSHOT_ENTRIES = 100;
 
@@ -175,8 +176,9 @@ export class ContextLedgerService {
         }
       }
     } finally {
-      // Runs even when an adapter throws while serializing, so carried state
-      // never outlives the build that produced it.
+      // Snapshots are intentionally carried across builds; bounding them in a
+      // `finally` ensures they still are when an adapter throws while
+      // serializing.
       this.pruneCarried(activeAdapters);
     }
 
@@ -237,36 +239,39 @@ export class ContextLedgerService {
    * Bounds the in-memory store after every build:
    * - entries from adapters that are not active are dropped (they can never be
    *   injected while disabled, and an adapter may disappear entirely);
-   * - snapshot entries keep only the most relevant `maxEntries` (or the default
-   *   cap), because snapshots cannot be re-collected and would otherwise
-   *   accumulate for the lifetime of the session.
+   * - entries from snapshot adapters keep only the most relevant `maxEntries`
+   *   (or the default cap), because snapshots cannot be re-collected and would
+   *   otherwise accumulate for the lifetime of the session.
+   *
+   * The adapter's declared `kind` is authoritative, matching {@link collect};
+   * per-entry `kind` is not consulted so the two cannot diverge.
    */
   private pruneCarried(
     activeAdapters: ReadonlyMap<string, LedgerAdapterSettings>,
   ): void {
-    const snapshotsByAdapter = new Map<string, ContextLedgerEntry[]>();
+    const snapshotsByAdapter = new Map<
+      string,
+      { settings: LedgerAdapterSettings; entries: ContextLedgerEntry[] }
+    >();
     for (const [key, entry] of this.carry) {
       const settings = activeAdapters.get(entry.adapterId);
       if (!settings) {
         this.carry.delete(key);
         continue;
       }
-      if (entry.kind === 'reference') {
+      const adapter = this.registry.get(entry.adapterId);
+      if (!adapter || adapter.kind === 'reference') {
         continue;
       }
-      const entries = snapshotsByAdapter.get(entry.adapterId);
-      if (entries) {
-        entries.push(entry);
+      const bucket = snapshotsByAdapter.get(entry.adapterId);
+      if (bucket) {
+        bucket.entries.push(entry);
       } else {
-        snapshotsByAdapter.set(entry.adapterId, [entry]);
+        snapshotsByAdapter.set(entry.adapterId, { settings, entries: [entry] });
       }
     }
 
-    for (const [adapterId, entries] of snapshotsByAdapter) {
-      const settings = activeAdapters.get(adapterId);
-      if (!settings) {
-        continue;
-      }
+    for (const { settings, entries } of snapshotsByAdapter.values()) {
       const limit = snapshotRetentionLimit(settings);
       if (entries.length <= limit) {
         continue;

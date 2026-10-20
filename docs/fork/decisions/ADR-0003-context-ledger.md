@@ -88,10 +88,14 @@ make it the single mechanism that re-injects content dropped by compaction.
   `maxEntries` entries (or `DEFAULT_MAX_CARRIED_SNAPSHOT_ENTRIES`, currently
   100, when `maxEntries` is unset), ordered by the adapter's relevance. A
   configured `maxEntries` lower than the default lowers retention too; an
-  unbounded setting does not make the store unbounded. Entries pruned this way
-  were already beyond what the adapter could inject. `reset()` runs on
-  `Config.setSessionId` and `GeminiClient.resetChat`, so snapshots cannot
-  outlive a conversation. No ledger content is written to disk.
+  unbounded setting does not make the store unbounded. Entries beyond the
+  configured `maxEntries` (or beyond the default cap when unset) are dropped
+  after the build; with no `maxEntries` configured, the first build can inject
+  entries that the default cap then prunes. The bound is per entry, not bytes:
+  an adapter must keep each snapshot payload reasonably sized. `reset()` runs on
+  `Config.setSessionId`, `GeminiClient.resetChat`, and
+  `GeminiClient.resumeChat`, so snapshots cannot outlive a conversation. No
+  ledger content is written to disk.
 - The "already present" skip is per adapter via `skipPresent`: `verbatim`
   (default) does a substring match and suits large, high-entropy payloads such
   as file contents; `exact` compares against whole preserved message parts and

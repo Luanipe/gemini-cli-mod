@@ -371,6 +371,9 @@ export class GeminiClient {
       }
     }
     this.chat = await this.startChat(history, resumedSessionData);
+    // Resuming replaces the conversation; snapshots from the previous one must
+    // not be re-injected into it.
+    this.config.getContextLedger?.().reset();
     this.updateTelemetryTokenCount();
   }
 

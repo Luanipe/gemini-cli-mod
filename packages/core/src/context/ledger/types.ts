@@ -122,7 +122,7 @@ export interface ContextLedgerBuildResult {
   content: Content | null;
   /** Keys (`adapterId:key`) that were injected this build. */
   injectedKeys: string[];
-  /** Keys skipped because their content is still verbatim in the tail. */
+  /** Keys skipped because their content is still present in the tail. */
   skippedPresentKeys: string[];
   /**
    * True when a per-entry or per-adapter budget truncated output, or when the

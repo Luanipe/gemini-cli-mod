@@ -413,6 +413,15 @@ describe('Gemini Client (client.ts)', () => {
 
       expect(uiTelemetryService.setLastPromptTokenCount).toHaveBeenCalled();
     });
+
+    it('should reset the context ledger', async () => {
+      const history: Content[] = [
+        { role: 'user', parts: [{ text: 'resumed message' }] },
+      ];
+      await client.resumeChat(history);
+
+      expect(mockLedgerReset).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('resetChat', () => {

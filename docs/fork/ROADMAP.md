@@ -124,8 +124,8 @@ The shared foundation is AH-5 (#18), now delivered.
 | AH-7 | Retrieval ledger adapter: MCP tools / `read_mcp_resource` | OPTIONAL | #20   | AH-5       |
 | AH-8 | Retrieval ledger adapter: webfetch / web search           | OPTIONAL | #21   | AH-5       |
 
-AH-9 (ledger maintenance) is implemented and in review (PR #25). It no longer
-blocks AH-4.
+AH-9 (ledger maintenance) is implemented and in review (PR #25); it unblocks
+AH-4 once merged.
 
 ## Decision records
 
