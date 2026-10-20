@@ -52,9 +52,9 @@ A task is `DONE` only when all of the following hold:
 
 ## Components
 
-**Current focus:** Anti-hallucination (AH) — AH-5 context ledger delivered
-(optional work pulled forward; AH-1/2/3/5 are DONE). The remaining AH items are
-optional backlog.
+**Current focus:** Anti-hallucination (AH) — AH-5 context ledger delivered and
+AH-9 ledger hardening in review (AH-1/2/3/5 are DONE, AH-9 is REVIEW). The
+remaining AH items are optional backlog.
 
 Status is updated as work lands. "Evidence" points to the commit/PR that
 delivered the item. Per the legend, `DONE` means **merged**; implemented and
@@ -80,6 +80,7 @@ silently dropped from the window.
 | AH-2 | Compaction circuit breaker + cooldown                   | DONE   | #2    | `feat/anti-hallucination-compaction-circuit-breaker` | #15 | `67c354349` |
 | AH-3 | Post-compact re-injection of recently touched files     | DONE   | #3    | `feat/anti-hallucination-post-compact-reinjection`   | #17 | `26159036f` |
 | AH-5 | Central context ledger + adapter framework              | DONE   | #18   | `feat/anti-hallucination-context-ledger`             | #23 | `06ca2102a` |
+| AH-9 | Context ledger maintenance follow-ups                   | REVIEW | #24   | `feat/anti-hallucination-ledger-maintenance`         | #25 | `250b140f1` |
 
 ### Harness
 
@@ -122,10 +123,9 @@ The shared foundation is AH-5 (#18), now delivered.
 | AH-6 | Retrieval ledger adapter: grep / ripgrep / glob / search  | OPTIONAL | #19   | AH-5       |
 | AH-7 | Retrieval ledger adapter: MCP tools / `read_mcp_resource` | OPTIONAL | #20   | AH-5       |
 | AH-8 | Retrieval ledger adapter: webfetch / web search           | OPTIONAL | #21   | AH-5       |
-| AH-9 | Context ledger maintenance follow-ups                     | OPTIONAL | #24   | AH-5       |
 
-Ledger maintenance follow-ups (snapshot pruning, session reset, per-adapter
-skip) are tracked in AH-9 (#24).
+AH-9 (ledger maintenance) is implemented and in review (PR #25). It no longer
+blocks AH-4.
 
 ## Decision records
 
