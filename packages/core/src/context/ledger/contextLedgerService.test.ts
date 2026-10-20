@@ -7,13 +7,17 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Content } from '@google/genai';
 import type { Config } from '../../config/config.js';
-import { ContextLedgerService } from './contextLedgerService.js';
+import {
+  ContextLedgerService,
+  DEFAULT_MAX_CARRIED_SNAPSHOT_ENTRIES,
+} from './contextLedgerService.js';
 import { ContextLedgerRegistry } from './registry.js';
 import { resolveLedgerSettings, type LedgerSettings } from './settings.js';
 import type {
   ContextLedgerAdapter,
   ContextLedgerEntry,
   LedgerKind,
+  LedgerPresentCheck,
 } from './types.js';
 
 interface FakeOptions {
@@ -22,6 +26,7 @@ interface FakeOptions {
   kind?: LedgerKind;
   trust?: 'authoritative' | 'untrusted';
   selfLabelsTrust?: boolean;
+  skipPresent?: LedgerPresentCheck;
   /** Entries returned by `collect`; can change between builds. */
   entries: () => Array<Partial<ContextLedgerEntry> & { content: string }>;
 }
@@ -33,6 +38,7 @@ function fakeAdapter(options: FakeOptions): ContextLedgerAdapter {
     trust: options.trust ?? 'untrusted',
     order: options.order,
     selfLabelsTrust: options.selfLabelsTrust,
+    skipPresent: options.skipPresent,
     async collect() {
       return options.entries().map((entry, index) => ({
         adapterId: options.id,
@@ -389,6 +395,237 @@ describe('ContextLedgerService', () => {
     service.reset();
     const afterReset = await service.build(config, []);
     expect(afterReset.content).toBeNull();
+  });
+
+  it('prunes carried snapshots to maxEntries after each build', async () => {
+    settings = resolveLedgerSettings({
+      adapters: {
+        a: { enabled: true, maxTokens: 10_000, maxEntries: 1 },
+      },
+    });
+    const registry = new ContextLedgerRegistry();
+    let entries: Array<Partial<ContextLedgerEntry> & { content: string }> = [
+      { key: 'keep', content: 'KEEP', order: 0 },
+      { key: 'drop', content: 'DROP', order: 1 },
+    ];
+    registry.register(
+      fakeAdapter({
+        id: 'a',
+        order: 0,
+        kind: 'snapshot',
+        entries: () => entries,
+      }),
+    );
+    const service = new ContextLedgerService(registry);
+    const config = makeConfig(settings);
+
+    await service.build(config, []);
+    entries = [];
+    // Without pruning, the second build would consider the retained `drop`.
+    settings.adapters['a'].maxEntries = undefined;
+    const second = await service.build(config, []);
+
+    expect(second.injectedKeys).toEqual(['a:keep']);
+    expect(second.content!.parts![0].text!).not.toContain('DROP');
+  });
+
+  it('bounds carried snapshots with the default cap when maxEntries is unset', async () => {
+    settings = resolveLedgerSettings({
+      adapters: { a: { enabled: true, maxTokens: 10_000 } },
+    });
+    const registry = new ContextLedgerRegistry();
+    const total = DEFAULT_MAX_CARRIED_SNAPSHOT_ENTRIES + 1;
+    let entries: Array<Partial<ContextLedgerEntry> & { content: string }> =
+      Array.from({ length: total }, (_, index) => ({
+        key: `k${index}`,
+        order: index,
+        content: `payload-${index}`,
+      }));
+    registry.register(
+      fakeAdapter({
+        id: 'a',
+        order: 0,
+        kind: 'snapshot',
+        entries: () => entries,
+      }),
+    );
+    const service = new ContextLedgerService(registry);
+    const config = makeConfig(settings);
+
+    const first = await service.build(config, []);
+    expect(first.injectedKeys).toHaveLength(total);
+
+    entries = [];
+    const second = await service.build(config, []);
+    expect(second.injectedKeys).toHaveLength(
+      DEFAULT_MAX_CARRIED_SNAPSHOT_ENTRIES,
+    );
+  });
+
+  it('drops carried state for adapters that are no longer enabled', async () => {
+    settings = resolveLedgerSettings({
+      adapters: { a: { enabled: true, maxTokens: 10_000 } },
+    });
+    const registry = new ContextLedgerRegistry();
+    let entries: Array<Partial<ContextLedgerEntry> & { content: string }> = [
+      { key: 'snap', content: 'snapshot payload' },
+    ];
+    registry.register(
+      fakeAdapter({
+        id: 'a',
+        order: 0,
+        kind: 'snapshot',
+        entries: () => entries,
+      }),
+    );
+    const service = new ContextLedgerService(registry);
+    const config = makeConfig(settings);
+
+    await service.build(config, []);
+    settings.adapters['a'].enabled = false;
+    expect((await service.build(config, [])).content).toBeNull();
+
+    settings.adapters['a'].enabled = true;
+    entries = [];
+    const reenabled = await service.build(config, []);
+    expect(reenabled.content).toBeNull();
+  });
+
+  it('clears carried state when the ledger is disabled', async () => {
+    settings = resolveLedgerSettings({
+      adapters: { a: { enabled: true, maxTokens: 10_000 } },
+    });
+    const registry = new ContextLedgerRegistry();
+    let entries: Array<Partial<ContextLedgerEntry> & { content: string }> = [
+      { key: 'snap', content: 'snapshot payload' },
+    ];
+    registry.register(
+      fakeAdapter({
+        id: 'a',
+        order: 0,
+        kind: 'snapshot',
+        entries: () => entries,
+      }),
+    );
+    const service = new ContextLedgerService(registry);
+    const config = makeConfig(settings);
+
+    await service.build(config, []);
+    settings.enabled = false;
+    expect((await service.build(config, [])).content).toBeNull();
+
+    settings.enabled = true;
+    entries = [];
+    const reenabled = await service.build(config, []);
+    expect(reenabled.content).toBeNull();
+  });
+
+  it('keeps snapshots for enabled adapters skipped by the central budget', async () => {
+    settings = resolveLedgerSettings({
+      maxTokensTotal: 80_000,
+      adapters: {
+        a: { enabled: true, maxTokens: 10_000 },
+        b: { enabled: true, maxTokens: 10_000 },
+      },
+    });
+    const registry = new ContextLedgerRegistry();
+    let entriesA: Array<Partial<ContextLedgerEntry> & { content: string }> = [
+      { key: 'a', content: 'A payload' },
+    ];
+    let entriesB: Array<Partial<ContextLedgerEntry> & { content: string }> = [
+      { key: 'b', content: 'B payload' },
+    ];
+    registry.register(
+      fakeAdapter({ id: 'a', order: 0, entries: () => entriesA }),
+    );
+    registry.register(
+      fakeAdapter({ id: 'b', order: 1, entries: () => entriesB }),
+    );
+    const service = new ContextLedgerService(registry);
+    const config = makeConfig(settings);
+
+    await service.build(config, []);
+    // A's block no longer fits, so the loop breaks before processing B.
+    settings.maxTokensTotal = 1;
+    await service.build(config, []);
+
+    entriesA = [];
+    entriesB = [];
+    settings.maxTokensTotal = 80_000;
+    settings.adapters['a'].enabled = false;
+    const after = await service.build(config, []);
+    expect(after.injectedKeys).toEqual(['b:b']);
+  });
+
+  it("does not skip a short substring with skipPresent 'exact'", async () => {
+    settings = resolveLedgerSettings({
+      adapters: { a: { enabled: true, maxTokens: 10_000 } },
+    });
+    const registry = new ContextLedgerRegistry();
+    registry.register(
+      fakeAdapter({
+        id: 'a',
+        order: 0,
+        skipPresent: 'exact',
+        entries: () => [{ key: 'short', content: 'use tabs' }],
+      }),
+    );
+    const preserved: Content[] = [
+      { role: 'user', parts: [{ text: 'please use tabs everywhere' }] },
+    ];
+
+    const result = await new ContextLedgerService(registry).build(
+      makeConfig(settings),
+      preserved,
+    );
+    expect(result.injectedKeys).toEqual(['a:short']);
+  });
+
+  it("skips an exact whole-part match with skipPresent 'exact'", async () => {
+    settings = resolveLedgerSettings({
+      adapters: { a: { enabled: true, maxTokens: 10_000 } },
+    });
+    const registry = new ContextLedgerRegistry();
+    registry.register(
+      fakeAdapter({
+        id: 'a',
+        order: 0,
+        skipPresent: 'exact',
+        entries: () => [{ key: 'short', content: 'use tabs' }],
+      }),
+    );
+    const preserved: Content[] = [
+      { role: 'user', parts: [{ text: 'use tabs' }] },
+    ];
+
+    const result = await new ContextLedgerService(registry).build(
+      makeConfig(settings),
+      preserved,
+    );
+    expect(result.content).toBeNull();
+    expect(result.skippedPresentKeys).toEqual(['a:short']);
+  });
+
+  it("never skips with skipPresent 'never'", async () => {
+    settings = resolveLedgerSettings({
+      adapters: { a: { enabled: true, maxTokens: 10_000 } },
+    });
+    const registry = new ContextLedgerRegistry();
+    registry.register(
+      fakeAdapter({
+        id: 'a',
+        order: 0,
+        skipPresent: 'never',
+        entries: () => [{ key: 'short', content: 'yes' }],
+      }),
+    );
+    const preserved: Content[] = [{ role: 'user', parts: [{ text: 'yes' }] }];
+
+    const result = await new ContextLedgerService(registry).build(
+      makeConfig(settings),
+      preserved,
+    );
+    expect(result.injectedKeys).toEqual(['a:short']);
   });
 
   it('registry.get() returns a registered adapter or undefined', () => {

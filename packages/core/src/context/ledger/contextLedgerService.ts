@@ -12,7 +12,10 @@ import {
   estimateCharsFromTokens,
   truncateProportionally,
 } from '../truncation.js';
-import { collectPreservedText, normalizeLineEndings } from './preservedText.js';
+import {
+  collectPreservedChunks,
+  normalizeLineEndings,
+} from './preservedText.js';
 import { escapeLedgerTag } from './escaping.js';
 import type { LedgerAdapterSettings } from './settings.js';
 import { createDefaultLedgerRegistry } from './registry.js';
@@ -27,6 +30,21 @@ import type {
 
 function keyOf(entry: ContextLedgerEntry): string {
   return `${entry.adapterId}:${entry.key}`;
+}
+
+/**
+ * Default cap on snapshot entries retained in memory per adapter. Snapshots
+ * cannot be reproduced, so they are carried forward; this bound (or a lower
+ * `maxEntries`) keeps a long-lived session from retaining every distinct key.
+ */
+export const DEFAULT_MAX_CARRIED_SNAPSHOT_ENTRIES = 100;
+
+function snapshotRetentionLimit(settings: LedgerAdapterSettings): number {
+  const configured = settings.maxEntries;
+  if (configured === undefined || !Number.isFinite(configured)) {
+    return DEFAULT_MAX_CARRIED_SNAPSHOT_ENTRIES;
+  }
+  return Math.max(0, Math.floor(configured));
 }
 
 function countTokens(text: string): number {
@@ -86,55 +104,80 @@ export class ContextLedgerService {
 
     const settings = config.getLedgerSettings?.();
     if (!settings || !settings.enabled) {
+      // A disabled ledger injects nothing, so there is no reason to keep any
+      // carried payload (including untrusted snapshots) in memory.
+      this.reset();
       return result;
     }
 
-    const preservedText = collectPreservedText(preservedHistory);
+    const preservedChunks = collectPreservedChunks(preservedHistory);
+    const preservedText = preservedChunks.join('\n');
     const blocks: string[] = [];
     let usedTotal = 0;
-
+    // Compute the active set up front: a central-budget break must not make a
+    // later enabled adapter look disabled and drop its carried snapshots.
+    const activeAdapters = new Map<string, LedgerAdapterSettings>();
     for (const adapter of this.registry.list()) {
       const adapterSettings = settings.adapters[adapter.id];
-      if (!adapterSettings?.enabled) {
-        continue;
+      if (adapterSettings?.enabled) {
+        activeAdapters.set(adapter.id, adapterSettings);
       }
+    }
 
-      await this.collect(adapter, config, preservedHistory, adapterSettings);
+    try {
+      for (const adapter of this.registry.list()) {
+        const adapterSettings = activeAdapters.get(adapter.id);
+        if (!adapterSettings) {
+          continue;
+        }
 
-      let entries = this.entriesFor(adapter.id);
-      if (adapterSettings.maxEntries !== undefined) {
-        entries = entries.slice(0, Math.max(0, adapterSettings.maxEntries));
+        await this.collect(adapter, config, preservedHistory, adapterSettings);
+
+        let entries = this.entriesFor(adapter.id);
+        if (adapterSettings.maxEntries !== undefined) {
+          entries = entries.slice(0, Math.max(0, adapterSettings.maxEntries));
+        }
+
+        const resolved = this.resolveEntries(
+          adapter,
+          entries,
+          preservedText,
+          preservedChunks,
+          adapterSettings,
+          result,
+        );
+        if (resolved.length === 0) {
+          continue;
+        }
+
+        const capped = this.applyAdapterBudget(
+          resolved,
+          adapterSettings,
+          result,
+        );
+        if (capped.length === 0) {
+          continue;
+        }
+
+        const blockBody = this.labelTrust(adapter, adapter.serialize(capped));
+        const blockTokens = countTokens(blockBody);
+
+        if (usedTotal + blockTokens > settings.maxTokensTotal) {
+          // Central budget: include adapter blocks while they fit; drop the rest.
+          result.truncated = true;
+          break;
+        }
+
+        blocks.push(blockBody);
+        usedTotal += blockTokens;
+        for (const entry of capped) {
+          result.injectedKeys.push(keyOf(entry.entry));
+        }
       }
-
-      const resolved = this.resolveEntries(
-        entries,
-        preservedText,
-        adapterSettings,
-        result,
-      );
-      if (resolved.length === 0) {
-        continue;
-      }
-
-      const capped = this.applyAdapterBudget(resolved, adapterSettings, result);
-      if (capped.length === 0) {
-        continue;
-      }
-
-      const blockBody = this.labelTrust(adapter, adapter.serialize(capped));
-      const blockTokens = countTokens(blockBody);
-
-      if (usedTotal + blockTokens > settings.maxTokensTotal) {
-        // Central budget: include adapter blocks while they fit; drop the rest.
-        result.truncated = true;
-        break;
-      }
-
-      blocks.push(blockBody);
-      usedTotal += blockTokens;
-      for (const entry of capped) {
-        result.injectedKeys.push(keyOf(entry.entry));
-      }
+    } finally {
+      // Runs even when an adapter throws while serializing, so carried state
+      // never outlives the build that produced it.
+      this.pruneCarried(activeAdapters);
     }
 
     if (blocks.length === 0) {
@@ -190,9 +233,56 @@ export class ContextLedgerService {
       .sort((a, b) => a.order - b.order);
   }
 
+  /**
+   * Bounds the in-memory store after every build:
+   * - entries from adapters that are not active are dropped (they can never be
+   *   injected while disabled, and an adapter may disappear entirely);
+   * - snapshot entries keep only the most relevant `maxEntries` (or the default
+   *   cap), because snapshots cannot be re-collected and would otherwise
+   *   accumulate for the lifetime of the session.
+   */
+  private pruneCarried(
+    activeAdapters: ReadonlyMap<string, LedgerAdapterSettings>,
+  ): void {
+    const snapshotsByAdapter = new Map<string, ContextLedgerEntry[]>();
+    for (const [key, entry] of this.carry) {
+      const settings = activeAdapters.get(entry.adapterId);
+      if (!settings) {
+        this.carry.delete(key);
+        continue;
+      }
+      if (entry.kind === 'reference') {
+        continue;
+      }
+      const entries = snapshotsByAdapter.get(entry.adapterId);
+      if (entries) {
+        entries.push(entry);
+      } else {
+        snapshotsByAdapter.set(entry.adapterId, [entry]);
+      }
+    }
+
+    for (const [adapterId, entries] of snapshotsByAdapter) {
+      const settings = activeAdapters.get(adapterId);
+      if (!settings) {
+        continue;
+      }
+      const limit = snapshotRetentionLimit(settings);
+      if (entries.length <= limit) {
+        continue;
+      }
+      entries.sort((a, b) => a.order - b.order);
+      for (const entry of entries.slice(limit)) {
+        this.carry.delete(keyOf(entry));
+      }
+    }
+  }
+
   private resolveEntries(
+    adapter: ContextLedgerAdapter,
     entries: readonly ContextLedgerEntry[],
     preservedText: string,
+    preservedChunks: readonly string[],
     settings: LedgerAdapterSettings,
     result: ContextLedgerBuildResult,
   ): ResolvedLedgerEntry[] {
@@ -202,7 +292,7 @@ export class ContextLedgerService {
       if (content.trim().length === 0) {
         continue;
       }
-      if (preservedText.includes(content)) {
+      if (this.isPresent(adapter, content, preservedText, preservedChunks)) {
         result.skippedPresentKeys.push(keyOf(entry));
         continue;
       }
@@ -264,6 +354,25 @@ export class ContextLedgerService {
       used += entry.tokens;
     }
     return capped;
+  }
+
+  private isPresent(
+    adapter: ContextLedgerAdapter,
+    content: string,
+    preservedText: string,
+    preservedChunks: readonly string[],
+  ): boolean {
+    switch (adapter.skipPresent ?? 'verbatim') {
+      case 'never':
+        return false;
+      case 'exact': {
+        const needle = content.trim();
+        return preservedChunks.some((chunk) => chunk.trim() === needle);
+      }
+      case 'verbatim':
+      default:
+        return preservedText.includes(content);
+    }
   }
 
   private labelTrust(adapter: ContextLedgerAdapter, body: string): string {

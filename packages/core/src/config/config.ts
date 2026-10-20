@@ -1862,6 +1862,9 @@ export class Config implements McpContext, AgentLoopContext {
     this.approvedPlanPath = undefined;
     this.topicState.reset();
     this.skillManager.reset();
+    // Carried ledger snapshots are session-scoped; a new session must not
+    // inherit content (especially untrusted snapshots) from the previous one.
+    this.contextLedger.reset();
     this.latestApiRequest = undefined;
     this.lastModeSwitchTime = performance.now();
     this.compressionTruncationCounter = 0;

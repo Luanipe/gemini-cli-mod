@@ -2020,6 +2020,20 @@ describe('Server Config (config.ts)', () => {
     expect(config.getFallbackOverride('failed-model')).toBeUndefined();
   });
 
+  it('clears the context ledger when session changes', async () => {
+    const config = new Config({
+      ...baseParams,
+      sessionId: 'session-one',
+    });
+    await config.initialize();
+
+    const resetSpy = vi.spyOn(config.getContextLedger(), 'reset');
+
+    config.setSessionId('session-two');
+
+    expect(resetSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('does not throw when changing sessions before the previous plans dir exists', async () => {
     const config = new Config({
       ...baseParams,

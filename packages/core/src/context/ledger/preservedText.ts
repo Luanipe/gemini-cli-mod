@@ -42,20 +42,25 @@ function collectStrings(value: unknown, out: string[], depth = 0): void {
 }
 
 /**
- * Returns the text the model can still see in the preserved tail, normalized so
- * that line-ending differences do not defeat substring matching.
+ * Returns the text the model can still see in the preserved tail as individual
+ * chunks, normalized so that line-ending differences do not defeat matching.
+ *
+ * Chunks keep message/part boundaries so an adapter can opt into whole-part
+ * (`exact`) presence checks instead of substring matching.
  */
-export function collectPreservedText(history: readonly Content[]): string {
+export function collectPreservedChunks(history: readonly Content[]): string[] {
   const chunks: string[] = [];
   for (const turn of history) {
     for (const part of turn.parts ?? []) {
       if (part.text) {
-        chunks.push(part.text);
+        chunks.push(normalizeLineEndings(part.text));
       }
       if (part.functionResponse?.response !== undefined) {
-        collectStrings(part.functionResponse.response, chunks);
+        const strings: string[] = [];
+        collectStrings(part.functionResponse.response, strings);
+        chunks.push(...strings.map(normalizeLineEndings));
       }
     }
   }
-  return normalizeLineEndings(chunks.join('\n'));
+  return chunks;
 }

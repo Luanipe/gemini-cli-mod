@@ -45,9 +45,10 @@ make it the single mechanism that re-injects content dropped by compaction.
   `newTokenCount` exactly as before.
 - **Carry-forward semantics.** `reference` adapters are re-collected from
   scratch each build (a source that disappears must not linger); `snapshot`
-  adapters are carried forward in memory across compactions, keyed by
-  `adapterId:key`, so they are never duplicated. The ledger state is
-  session-scoped on `Config` and is **never persisted to disk**.
+  adapters are carried forward in memory across compactions (bounded after each
+  build; see consequences), keyed by `adapterId:key`, so they are never
+  duplicated. The ledger state is session-scoped on `Config` and is **never
+  persisted to disk**.
 - **Budgets.** Each adapter has a total budget (`maxTokens`), an optional
   per-entry budget (`maxTokensPerEntry`), an optional entry cap (`maxEntries`),
   and explicit truncation markers. The ledger also enforces a central
@@ -81,11 +82,24 @@ make it the single mechanism that re-injects content dropped by compaction.
   once, with a fake adapter, rather than re-implemented per source.
 - Untrusted content is structurally separated from authoritative content and is
   always labelled as reference.
-- The ledger keeps snapshot payloads in memory for the lifetime of the session.
-  The store grows with the number of distinct entry keys, not with the number of
-  injections: `maxEntries`/`maxTokens` cap what is _injected_, not what is
-  retained. Pruning carried snapshots is follow-up work before the first
-  `snapshot` adapter (AH-4) lands. No ledger content is written to disk.
+- The ledger keeps snapshot payloads in memory for the lifetime of the session,
+  and bounds that store after every build. Snapshots owned by disabled or
+  removed adapters are dropped, and each snapshot adapter retains at most
+  `maxEntries` entries (or `DEFAULT_MAX_CARRIED_SNAPSHOT_ENTRIES`, currently
+  100, when `maxEntries` is unset), ordered by the adapter's relevance. A
+  configured `maxEntries` lower than the default lowers retention too; an
+  unbounded setting does not make the store unbounded. Entries pruned this way
+  were already beyond what the adapter could inject. `reset()` runs on
+  `Config.setSessionId` and `GeminiClient.resetChat`, so snapshots cannot
+  outlive a conversation. No ledger content is written to disk.
+- The "already present" skip is per adapter via `skipPresent`: `verbatim`
+  (default) does a substring match and suits large, high-entropy payloads such
+  as file contents; `exact` compares against whole preserved message parts and
+  is intended for short, low-entropy payloads (for example one-line user
+  instructions) that a substring match can drop spuriously; `never` disables the
+  check for assembled or transformed payloads.
+- The ledger's in-memory state is dropped when the master switch is off, so a
+  disabled ledger cannot retain untrusted content.
 - Opening and closing `context_ledger` tags are escaped in every rendered body
   (wrapped or self-labelled), so a payload can neither close nor spoof the
   container. The `files` adapter additionally escapes its own

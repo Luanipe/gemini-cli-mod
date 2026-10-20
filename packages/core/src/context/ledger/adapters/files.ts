@@ -79,6 +79,9 @@ export function createFilesAdapter(): ContextLedgerAdapter {
     trust: 'untrusted',
     order: 0,
     selfLabelsTrust: true,
+    // File contents and paths are high-entropy; the default substring check is
+    // appropriate and avoids re-injecting a file still in the preserved tail.
+    skipPresent: 'verbatim',
     async collect({ config, settings }): Promise<ContextLedgerEntry[]> {
       const tracker = config.getFileReadState?.();
       if (!tracker) {
