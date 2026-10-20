@@ -123,13 +123,19 @@ describe('files ledger adapter', () => {
   });
 
   it('re-reads current content from disk rather than using stale content', async () => {
-    const filePath = writeFile('changed.ts', 'export const value = 1;');
-    await tracker.recordRead(filePath, 'export const value = 1;');
+    const filePath = writeFile('changed.ts', 'export const value = "stale";');
+    await tracker.recordRead(filePath, 'export const value = "stale";');
+
+    // The file changes after it was recorded: the ledger must read the
+    // current bytes at compaction time, not the content known at record time.
+    fs.writeFileSync(filePath, 'export const value = "fresh";');
 
     const result = await makeService().build(makeConfig(), []);
+
+    expect(result.injectedKeys).toEqual([`${FILES_ADAPTER_ID}:${filePath}`]);
     const text = result.content!.parts![0].text!;
-    expect(text).toContain('export const value = 1;');
-    expect(text).not.toContain('export const value = 999;');
+    expect(text).toContain('export const value = "fresh";');
+    expect(text).not.toContain('"stale"');
   });
 
   it('skips files whose content is still verbatim in the preserved tail', async () => {
