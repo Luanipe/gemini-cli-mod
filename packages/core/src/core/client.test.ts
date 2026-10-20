@@ -169,6 +169,7 @@ async function fromAsync<T>(promise: AsyncGenerator<T>): Promise<readonly T[]> {
 describe('Gemini Client (client.ts)', () => {
   let mockContentGenerator: ContentGenerator;
   let mockConfig: Config;
+  let mockLedgerReset: Mock;
   let client: GeminiClient;
   let mockGenerateContentFn: Mock;
   let mockRouterService: { route: Mock };
@@ -176,6 +177,8 @@ describe('Gemini Client (client.ts)', () => {
     vi.resetAllMocks();
     ClearcutLogger.clearInstance();
     vi.mocked(uiTelemetryService.setLastPromptTokenCount).mockClear();
+
+    mockLedgerReset = vi.fn();
 
     mockGenerateContentFn = vi.fn().mockResolvedValue({
       candidates: [{ content: { parts: [{ text: '{"key": "value"}' }] } }],
@@ -228,6 +231,7 @@ describe('Gemini Client (client.ts)', () => {
       getSystemInstructionMemory: vi.fn().mockReturnValue(''),
       getSessionMemory: vi.fn().mockReturnValue(''),
       getMemoryContextManager: vi.fn().mockReturnValue(undefined),
+      getContextLedger: vi.fn().mockReturnValue({ reset: mockLedgerReset }),
       getDisableLoopDetection: vi.fn().mockReturnValue(false),
       getToolOutputMaskingConfig: vi.fn().mockReturnValue({
         protectionThresholdTokens: 50000,
@@ -409,6 +413,15 @@ describe('Gemini Client (client.ts)', () => {
 
       expect(uiTelemetryService.setLastPromptTokenCount).toHaveBeenCalled();
     });
+
+    it('should reset the context ledger', async () => {
+      const history: Content[] = [
+        { role: 'user', parts: [{ text: 'resumed message' }] },
+      ];
+      await client.resumeChat(history);
+
+      expect(mockLedgerReset).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('resetChat', () => {
@@ -453,6 +466,12 @@ describe('Gemini Client (client.ts)', () => {
       vi.mocked(mockConfig.getMemoryContextManager).mockReturnValue(undefined);
 
       await expect(client.resetChat()).resolves.not.toThrow();
+    });
+
+    it('should reset the context ledger', async () => {
+      await client.resetChat();
+
+      expect(mockLedgerReset).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -334,6 +334,9 @@ export class GeminiClient {
 
   async resetChat(): Promise<void> {
     this.chat = await this.startChat();
+    // A chat reset starts a new conversation even when the session id is kept,
+    // so carried ledger snapshots must not outlive it.
+    this.config.getContextLedger?.().reset();
     this.updateTelemetryTokenCount();
     // Reset JIT context loaded paths so subdirectory context can be
     // re-discovered in the new session.
@@ -368,6 +371,9 @@ export class GeminiClient {
       }
     }
     this.chat = await this.startChat(history, resumedSessionData);
+    // Resuming replaces the conversation; snapshots from the previous one must
+    // not be re-injected into it.
+    this.config.getContextLedger?.().reset();
     this.updateTelemetryTokenCount();
   }
 

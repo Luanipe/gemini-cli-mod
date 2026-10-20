@@ -466,8 +466,9 @@ async function truncateHistoryToBudget(
 /**
  * Builds the post-compaction re-injection turn from the session context ledger,
  * or null when there is nothing to re-inject. The ledger re-reads/fetches each
- * adapter's current content and skips entries still verbatim in the preserved
- * tail (AH-5, generalizing AH-3).
+ * adapter's current content and skips entries still present in the preserved
+ * tail according to the adapter's `skipPresent` strategy (AH-5, generalizing
+ * AH-3).
  */
 async function buildLedgerTurn(
   config: Config,

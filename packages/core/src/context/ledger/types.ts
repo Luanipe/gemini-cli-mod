@@ -26,6 +26,20 @@ export type LedgerKind = 'reference' | 'snapshot';
  */
 export type LedgerTrust = 'authoritative' | 'untrusted';
 
+/**
+ * How the ledger decides whether an entry is already present in the preserved
+ * tail.
+ *
+ * - `verbatim` (default): substring match. Safe for large, high-entropy
+ *   payloads such as file contents; a short payload can match inside unrelated
+ *   text and be dropped spuriously.
+ * - `exact`: whole-part match. Use for short, low-entropy payloads (for example
+ *   one-line user instructions) where a substring match is too aggressive.
+ * - `never`: never skip. Use when the payload is assembled or transformed and
+ *   cannot be compared verbatim against history.
+ */
+export type LedgerPresentCheck = 'verbatim' | 'exact' | 'never';
+
 /** A single candidate re-injection entry produced by an adapter. */
 export interface ContextLedgerEntry {
   /** Id of the adapter that produced the entry. */
@@ -83,15 +97,19 @@ export interface ContextLedgerAdapter {
    */
   readonly selfLabelsTrust?: boolean;
   /**
+   * How to decide whether {@link collect} content is still present in the
+   * preserved tail. Defaults to `verbatim`; see {@link LedgerPresentCheck}.
+   */
+  readonly skipPresent?: LedgerPresentCheck;
+  /**
    * Collects candidate entries. Content must be resolved, never summarized; it
    * is rendered verbatim except that ledger container tags are neutralized
    * (escaped) so content cannot close or spoof a block.
    *
-   * The ledger skips an entry whose `content` is still verbatim in the
-   * preserved tail. That check is a substring match, so `content` must be
-   * verbatim and reasonably high-entropy: short, low-entropy payloads (for
-   * example a one-word user instruction) can be dropped spuriously and should
-   * not rely on this heuristic.
+   * The ledger skips an entry whose `content` is still present in the preserved
+   * tail, using the adapter's {@link skipPresent} strategy. `content` must be
+   * verbatim for the default substring check to work; short, low-entropy
+   * payloads should use `exact` or `never` instead.
    */
   collect(ctx: LedgerAdapterContext): Promise<ContextLedgerEntry[]>;
   /** Renders this adapter's labelled block from the entries the service kept. */
@@ -104,7 +122,7 @@ export interface ContextLedgerBuildResult {
   content: Content | null;
   /** Keys (`adapterId:key`) that were injected this build. */
   injectedKeys: string[];
-  /** Keys skipped because their content is still verbatim in the tail. */
+  /** Keys skipped because their content is still present in the tail. */
   skippedPresentKeys: string[];
   /**
    * True when a per-entry or per-adapter budget truncated output, or when the
