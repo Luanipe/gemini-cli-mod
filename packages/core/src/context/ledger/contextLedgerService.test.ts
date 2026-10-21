@@ -98,6 +98,64 @@ describe('ContextLedgerService', () => {
     expect(result.injectedKeys).toEqual([]);
   });
 
+  it('passes droppedHistory to adapters and defaults it to an empty array', async () => {
+    settings = resolveLedgerSettings({
+      adapters: { a: { enabled: true, maxTokens: 10_000 } },
+    });
+    let captured: readonly Content[] | undefined;
+    const registry = new ContextLedgerRegistry();
+    registry.register({
+      id: 'a',
+      kind: 'snapshot',
+      trust: 'untrusted',
+      order: 0,
+      async collect(ctx) {
+        captured = ctx.droppedHistory;
+        return [];
+      },
+      serialize() {
+        return '';
+      },
+    });
+
+    await new ContextLedgerService(registry).build(makeConfig(settings), []);
+    expect(captured).toEqual([]);
+  });
+
+  it('forwards reset to registered adapters', () => {
+    let resets = 0;
+    const registry = new ContextLedgerRegistry();
+    registry.register({
+      ...fakeAdapter({ id: 'a', order: 0, entries: () => [] }),
+      reset() {
+        resets += 1;
+      },
+    });
+
+    new ContextLedgerService(registry).reset();
+    expect(resets).toBe(1);
+  });
+
+  it('keeps resetting other adapters when one reset throws', () => {
+    let resets = 0;
+    const registry = new ContextLedgerRegistry();
+    registry.register({
+      ...fakeAdapter({ id: 'throwing', order: 0, entries: () => [] }),
+      reset() {
+        throw new Error('boom');
+      },
+    });
+    registry.register({
+      ...fakeAdapter({ id: 'healthy', order: 1, entries: () => [] }),
+      reset() {
+        resets += 1;
+      },
+    });
+
+    expect(() => new ContextLedgerService(registry).reset()).not.toThrow();
+    expect(resets).toBe(1);
+  });
+
   it('orders adapters by their declared order and entries by entry.order', async () => {
     settings = resolveLedgerSettings({
       adapters: {

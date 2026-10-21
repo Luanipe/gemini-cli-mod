@@ -21,7 +21,11 @@ import * as fileUtils from '../utils/fileUtils.js';
 import { getInitialChatHistory } from '../utils/environmentContext.js';
 import { FileReadStateTracker } from '../utils/fileReadState.js';
 import { ContextLedgerService } from './ledger/contextLedgerService.js';
-import { DEFAULT_LEDGER_SETTINGS } from './ledger/settings.js';
+import { USER_INSTRUCTIONS_ADAPTER_ID } from './ledger/adapters/userInstructions.js';
+import {
+  DEFAULT_LEDGER_SETTINGS,
+  resolveLedgerSettings,
+} from './ledger/settings.js';
 
 const { TOOL_OUTPUTS_DIR } = fileUtils;
 import * as tokenCalculation from '../utils/tokenCalculation.js';
@@ -1437,9 +1441,10 @@ describe('ChatCompressionService', () => {
       );
 
       expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
-      const firstTurn = result.newHistory![0];
-      expect(firstTurn.parts![0].text).toContain('<recently_referenced_files>');
-      expect(firstTurn.parts![0].text).toContain(content);
+      expect(result.newHistory![2].parts![0].text).toContain(
+        '<recently_referenced_files>',
+      );
+      expect(result.newHistory![2].parts![0].text).toContain(content);
     });
 
     it('drops re-injection when it would inflate the compressed history', async () => {
@@ -1714,6 +1719,92 @@ describe('ChatCompressionService', () => {
         '<recently_referenced_files>',
       );
       expect(result.info.newTokenCount).toBeLessThanOrEqual(44000);
+    });
+  });
+
+  describe('user instruction ledger (AH-4)', () => {
+    function enableUserInstructions(): void {
+      vi.mocked(mockConfig.getLedgerSettings).mockReturnValue(
+        resolveLedgerSettings({
+          adapters: {
+            [USER_INSTRUCTIONS_ADAPTER_ID]: {
+              enabled: true,
+              maxTokens: 12_000,
+            },
+          },
+        }),
+      );
+    }
+
+    it('re-injects dropped user requests after the state snapshot', async () => {
+      enableUserInstructions();
+      const request = 'Deployment rule: never edit files under /prod.';
+
+      vi.mocked(mockChat.getHistory).mockReturnValue([
+        {
+          role: 'user',
+          parts: [{ text: '<session_context>environment</session_context>' }],
+        },
+        { role: 'user', parts: [{ text: request }] },
+        { role: 'model', parts: [{ text: 'understood' }] },
+        { role: 'user', parts: [{ text: 'filler '.repeat(150) }] },
+        { role: 'model', parts: [{ text: 'filler reply '.repeat(100) }] },
+        { role: 'user', parts: [{ text: 'the preserved tail' }] },
+      ]);
+      vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(600000);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        false,
+      );
+
+      expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
+      expect(result.newHistory![0].parts![0].text).toBe('Verified Summary');
+      expect(result.newHistory![1].parts![0].text).toContain('Got it.');
+
+      // The ledger follows the state snapshot and its acknowledgement, before
+      // the preserved tail.
+      const ledgerTurn = result.newHistory![2];
+      const text = ledgerTurn.parts![0].text ?? '';
+      expect(text).toContain('<user_instruction_log>');
+      expect(text).toContain(request);
+      expect(text).toContain('trust="authoritative"');
+      expect(text).not.toContain('<session_context>');
+      expect(
+        result.newHistory!.findIndex(
+          (turn) => turn.parts?.[0]?.text === 'the preserved tail',
+        ),
+      ).toBeGreaterThan(2);
+    });
+
+    it('does not inject user requests when the adapter is disabled', async () => {
+      const request = 'Remember the staging URL.';
+      vi.mocked(mockChat.getHistory).mockReturnValue([
+        { role: 'user', parts: [{ text: request }] },
+        { role: 'model', parts: [{ text: 'ok' }] },
+        { role: 'user', parts: [{ text: 'filler '.repeat(150) }] },
+        { role: 'model', parts: [{ text: 'filler reply '.repeat(100) }] },
+        { role: 'user', parts: [{ text: 'the preserved tail' }] },
+      ]);
+      vi.mocked(mockChat.getLastPromptTokenCount).mockReturnValue(600000);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        false,
+      );
+
+      expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
+      expect(JSON.stringify(result.newHistory)).not.toContain(
+        '<user_instruction_log>',
+      );
     });
   });
 });

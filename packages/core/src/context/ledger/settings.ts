@@ -8,6 +8,10 @@ import {
   DEFAULT_FILES_ADAPTER_SETTINGS,
   FILES_ADAPTER_ID,
 } from './adapters/files.js';
+import {
+  DEFAULT_USER_INSTRUCTIONS_ADAPTER_SETTINGS,
+  USER_INSTRUCTIONS_ADAPTER_ID,
+} from './adapters/userInstructions.js';
 
 /** Per-adapter budgets and enablement, keyed by adapter id. */
 export interface LedgerAdapterSettings {
@@ -52,6 +56,9 @@ export const DEFAULT_LEDGER_SETTINGS: LedgerSettings = {
   maxTokensTotal: 80000,
   adapters: {
     [FILES_ADAPTER_ID]: { ...DEFAULT_FILES_ADAPTER_SETTINGS },
+    [USER_INSTRUCTIONS_ADAPTER_ID]: {
+      ...DEFAULT_USER_INSTRUCTIONS_ADAPTER_SETTINGS,
+    },
   },
 };
 

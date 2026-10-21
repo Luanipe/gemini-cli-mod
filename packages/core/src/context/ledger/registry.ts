@@ -6,6 +6,7 @@
 
 import type { ContextLedgerAdapter } from './types.js';
 import { createFilesAdapter } from './adapters/files.js';
+import { createUserInstructionsAdapter } from './adapters/userInstructions.js';
 
 /**
  * Holds the registered ledger adapters and yields them in a deterministic
@@ -37,5 +38,6 @@ export class ContextLedgerRegistry {
 export function createDefaultLedgerRegistry(): ContextLedgerRegistry {
   const registry = new ContextLedgerRegistry();
   registry.register(createFilesAdapter());
+  registry.register(createUserInstructionsAdapter());
   return registry;
 }

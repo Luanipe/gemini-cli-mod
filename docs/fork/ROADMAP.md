@@ -52,9 +52,8 @@ A task is `DONE` only when all of the following hold:
 
 ## Components
 
-**Current focus:** Anti-hallucination (AH) — AH-5 context ledger delivered and
-AH-9 ledger hardening done (AH-1/2/3/5/9 are DONE). The remaining AH items are
-optional backlog.
+**Current focus:** Anti-hallucination (AH) — AH-1/2/3/4/5/9 are DONE. The
+remaining AH items (AH-6/7/8) are optional backlog.
 
 Status is updated as work lands. "Evidence" points to the commit/PR that
 delivered the item. Per the legend, `DONE` means **merged**; implemented and
@@ -81,6 +80,11 @@ silently dropped from the window.
 | AH-3 | Post-compact re-injection of recently touched files     | DONE   | #3    | `feat/anti-hallucination-post-compact-reinjection`   | #17 | `26159036f` |
 | AH-5 | Central context ledger + adapter framework              | DONE   | #18   | `feat/anti-hallucination-context-ledger`             | #23 | `06ca2102a` |
 | AH-9 | Context ledger maintenance follow-ups                   | DONE   | #24   | `feat/anti-hallucination-ledger-maintenance`         | #25 | `2bb6d7596` |
+| AH-4 | Compaction-safe user instruction ledger                 | DONE   | #16   | `feat/anti-hallucination-user-instruction-ledger`    | #27 | `0f5d910ab` |
+
+AH-4's 20-request recall scenario is covered at the adapter level
+(`userInstructions.test.ts`). A model-level eval is pending because the eval
+suite requires a live model.
 
 ### Harness
 
@@ -119,12 +123,13 @@ The shared foundation is AH-5 (#18), now delivered.
 
 | ID   | Item                                                      | Status   | Issue | Depends on |
 | ---- | --------------------------------------------------------- | -------- | ----- | ---------- |
-| AH-4 | Compaction-safe user instruction ledger                   | OPTIONAL | #16   | AH-5       |
 | AH-6 | Retrieval ledger adapter: grep / ripgrep / glob / search  | OPTIONAL | #19   | AH-5       |
 | AH-7 | Retrieval ledger adapter: MCP tools / `read_mcp_resource` | OPTIONAL | #20   | AH-5       |
 | AH-8 | Retrieval ledger adapter: webfetch / web search           | OPTIONAL | #21   | AH-5       |
 
-AH-9 (ledger maintenance) is DONE (PR #25) and unblocks AH-4.
+AH-9 (ledger maintenance) is DONE (PR #25) and unblocked AH-4. AH-4 (ADR-0004)
+also extended the adapter contract with `droppedHistory`, which AH-6/7/8 can
+reuse.
 
 ## Decision records
 
@@ -138,3 +143,5 @@ Decisions that are hard to reverse or that need context are recorded as ADRs in
   re-injection of recently touched files (superseded by ADR-0003).
 - [ADR-0003](./decisions/ADR-0003-context-ledger.md) — context ledger with
   pluggable re-injection adapters.
+- [ADR-0004](./decisions/ADR-0004-user-instruction-ledger.md) — compaction-safe
+  user instruction ledger and the `droppedHistory` adapter input.

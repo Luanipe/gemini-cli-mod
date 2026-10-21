@@ -473,12 +473,13 @@ async function truncateHistoryToBudget(
 async function buildLedgerTurn(
   config: Config,
   preservedHistory: readonly Content[],
+  droppedHistory: readonly Content[],
 ): Promise<Content | null> {
   const ledger = config.getContextLedger?.();
   if (!ledger) {
     return null;
   }
-  const result = await ledger.build(config, preservedHistory);
+  const result = await ledger.build(config, preservedHistory, droppedHistory);
   return result.content;
 }
 
@@ -570,7 +571,7 @@ export class ChatCompressionService {
       if (truncatedTokenCount < originalTokenCount) {
         // Re-inject content dropped by the truncation via the context ledger,
         // placed right after the environment context (AH-3/AH-5).
-        const reinjection = await buildLedgerTurn(config, truncatedHistory);
+        const reinjection = await buildLedgerTurn(config, truncatedHistory, []);
         let newHistory = reinjection
           ? insertAfterEnvContext(truncatedHistory, reinjection)
           : truncatedHistory;
@@ -712,10 +713,13 @@ export class ChatCompressionService {
       };
     }
 
-    const reinjection = await buildLedgerTurn(config, historyToKeepTruncated);
+    const reinjection = await buildLedgerTurn(
+      config,
+      historyToKeepTruncated,
+      historyToCompressTruncated,
+    );
 
     const buildExtraHistory = (includeReinjection: boolean): Content[] => [
-      ...(includeReinjection && reinjection ? [reinjection] : []),
       {
         role: 'user',
         parts: [{ text: finalSummary }],
@@ -724,6 +728,10 @@ export class ChatCompressionService {
         role: 'model',
         parts: [{ text: 'Got it. Thanks for the additional context!' }],
       },
+      // The ledger follows the <state_snapshot> and its acknowledgement so the
+      // model reads the summary first, then the re-injected reference material,
+      // then the preserved tail (AH-4, generalizing AH-3/AH-5).
+      ...(includeReinjection && reinjection ? [reinjection] : []),
       ...historyToKeepTruncated,
     ];
 
