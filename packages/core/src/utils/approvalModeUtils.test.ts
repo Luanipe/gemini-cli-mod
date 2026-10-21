@@ -36,6 +36,12 @@ describe('approvalModeUtils', () => {
         'YOLO mode (all tool calls auto-approved)',
       );
     });
+
+    it('should return correct description for DONT_ASK mode', () => {
+      expect(getApprovalModeDescription(ApprovalMode.DONT_ASK)).toBe(
+        "Don't Ask mode (approval prompts are denied)",
+      );
+    });
   });
 
   describe('getPlanModeExitMessage', () => {

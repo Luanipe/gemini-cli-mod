@@ -129,11 +129,12 @@ their corresponding top-level category object in your `settings.json` file.
 - **`general.defaultApprovalMode`** (enum):
 
   - **Description:** The default approval mode for tool execution. 'default'
-    prompts for approval, 'auto_edit' auto-approves edit tools, and 'plan' is
-    read-only mode. YOLO mode (auto-approve all actions) can only be enabled via
-    command line (--yolo or --approval-mode=yolo).
+    prompts for approval, 'auto_edit' auto-approves edit tools, 'dont_ask'
+    denies anything that would prompt (for CI/headless), and 'plan' is read-only
+    mode. YOLO mode (auto-approve all actions) can only be enabled via command
+    line (--yolo or --approval-mode=yolo).
   - **Default:** `"default"`
-  - **Values:** `"default"`, `"auto_edit"`, `"plan"`
+  - **Values:** `"default"`, `"auto_edit"`, `"dont_ask"`, `"plan"`
 
 - **`general.devtools`** (boolean):
 
@@ -2971,6 +2972,8 @@ for that specific session.
     - `auto_edit`: Automatically approve edit tools (replace, write_file) while
       prompting for others
     - `yolo`: Automatically approve all tool calls (equivalent to `--yolo`)
+    - `dont_ask`: Deny anything that would prompt instead of asking (alias:
+      `dontAsk`). Intended for CI/headless runs; it never auto-approves.
     - `plan`: Read-only mode for tool calls (requires experimental planning to
       be enabled).
       > **Note:** This mode is currently under development and not yet fully

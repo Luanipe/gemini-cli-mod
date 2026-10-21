@@ -195,6 +195,11 @@ describe('AcpSessionManager', () => {
           description: 'Auto-approves edit tools',
         },
         { id: 'yolo', name: 'YOLO', description: 'Auto-approves all tools' },
+        {
+          id: 'dontAsk',
+          name: "Don't Ask",
+          description: 'Denies prompts instead of asking (CI/headless)',
+        },
       ],
       currentModeId: 'default',
     });
@@ -270,6 +275,11 @@ describe('AcpSessionManager', () => {
         },
         { id: 'yolo', name: 'YOLO', description: 'Auto-approves all tools' },
         { id: 'plan', name: 'Plan', description: 'Read-only mode' },
+        {
+          id: 'dontAsk',
+          name: "Don't Ask",
+          description: 'Denies prompts instead of asking (CI/headless)',
+        },
       ],
       currentModeId: 'plan',
     });

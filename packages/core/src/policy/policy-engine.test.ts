@@ -376,6 +376,59 @@ describe('PolicyEngine', () => {
       ).toBe(PolicyDecision.DENY);
     });
 
+    it('should deny instead of asking in dontAsk mode', async () => {
+      engine = new PolicyEngine({
+        approvalMode: ApprovalMode.DONT_ASK,
+        rules: [
+          { toolName: 'ask-tool', decision: PolicyDecision.ASK_USER },
+          { toolName: 'allowed-tool', decision: PolicyDecision.ALLOW },
+          { toolName: 'denied-tool', decision: PolicyDecision.DENY },
+        ],
+      });
+
+      expect(
+        (await engine.check({ name: 'ask-tool' }, undefined)).decision,
+      ).toBe(PolicyDecision.DENY);
+      expect(
+        (await engine.check({ name: 'allowed-tool' }, undefined)).decision,
+      ).toBe(PolicyDecision.ALLOW);
+      expect(
+        (await engine.check({ name: 'denied-tool' }, undefined)).decision,
+      ).toBe(PolicyDecision.DENY);
+      // No matching rule: the default must be DENY, never ASK_USER.
+      expect(
+        (await engine.check({ name: 'unknown-tool' }, undefined)).decision,
+      ).toBe(PolicyDecision.DENY);
+    });
+
+    it('should treat dontAsk as DEFAULT for mode-scoped rules', async () => {
+      engine = new PolicyEngine({
+        approvalMode: ApprovalMode.DONT_ASK,
+        rules: [
+          {
+            toolName: 'default-scoped-tool',
+            decision: PolicyDecision.ALLOW,
+            modes: [ApprovalMode.DEFAULT],
+          },
+          {
+            toolName: 'yolo-scoped-tool',
+            decision: PolicyDecision.ALLOW,
+            modes: [ApprovalMode.YOLO],
+          },
+        ],
+      });
+
+      // DEFAULT-scoped rules still apply; only the ASK_USER outcome changes.
+      expect(
+        (await engine.check({ name: 'default-scoped-tool' }, undefined))
+          .decision,
+      ).toBe(PolicyDecision.ALLOW);
+      // dontAsk is not YOLO: YOLO-only rules must not grant anything.
+      expect(
+        (await engine.check({ name: 'yolo-scoped-tool' }, undefined)).decision,
+      ).toBe(PolicyDecision.DENY);
+    });
+
     it('should dynamically switch between modes and respect rule modes', async () => {
       const rules: PolicyRule[] = [
         {

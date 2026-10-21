@@ -136,9 +136,16 @@ function ruleMatches(
   toolAnnotations?: Record<string, unknown>,
   subagent?: string,
 ): boolean {
-  // Check if rule applies to current approval mode
+  // Check if rule applies to current approval mode.
+  // DONT_ASK is not a permissiveness tier: it reuses DEFAULT's rules and
+  // only changes ASK_USER decisions into DENY. Rules may still opt in
+  // explicitly by listing `dontAsk` in their modes.
   if (rule.modes && rule.modes.length > 0) {
-    if (!rule.modes.includes(currentApprovalMode)) {
+    const matchesMode =
+      rule.modes.includes(currentApprovalMode) ||
+      (currentApprovalMode === ApprovalMode.DONT_ASK &&
+        rule.modes.includes(ApprovalMode.DEFAULT));
+    if (!matchesMode) {
       return false;
     }
   }
@@ -296,14 +303,24 @@ export class PolicyEngine {
     }
 
     this.nonInteractive = config.nonInteractive ?? false;
+    this.approvalMode = config.approvalMode ?? ApprovalMode.DEFAULT;
     this.defaultDecision =
       config.defaultDecision ??
-      (this.nonInteractive ? PolicyDecision.DENY : PolicyDecision.ASK_USER);
+      (this.deniesInsteadOfAsking()
+        ? PolicyDecision.DENY
+        : PolicyDecision.ASK_USER);
     this.disableAlwaysAllow = config.disableAlwaysAllow ?? false;
     this.checkerRunner = checkerRunner;
-    this.approvalMode = config.approvalMode ?? ApprovalMode.DEFAULT;
     this.sandboxManager = config.sandboxManager ?? new NoopSandboxManager();
     this.isTrustedFolderFn = config.isTrustedFolder;
+  }
+
+  /**
+   * Whether a decision that would prompt the user must instead be denied.
+   * True for non-interactive runs and for the explicit `dontAsk` mode.
+   */
+  private deniesInsteadOfAsking(): boolean {
+    return this.nonInteractive || this.approvalMode === ApprovalMode.DONT_ASK;
   }
 
   isTrustedFolder(): boolean {
@@ -1007,7 +1024,7 @@ export class PolicyEngine {
       }
     }
 
-    if (this.nonInteractive && decision === PolicyDecision.ASK_USER) {
+    if (this.deniesInsteadOfAsking() && decision === PolicyDecision.ASK_USER) {
       decision = PolicyDecision.DENY;
     }
 

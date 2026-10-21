@@ -41,6 +41,13 @@ describe('ApprovalModeIndicator', () => {
     expect(lastFrame()).toMatchSnapshot();
   });
 
+  it('renders correctly for DONT_ASK mode', async () => {
+    const { lastFrame } = await render(
+      <ApprovalModeIndicator approvalMode={ApprovalMode.DONT_ASK} />,
+    );
+    expect(lastFrame()).toMatchSnapshot();
+  });
+
   it('renders correctly for DEFAULT mode', async () => {
     const { lastFrame } = await render(
       <ApprovalModeIndicator approvalMode={ApprovalMode.DEFAULT} />,

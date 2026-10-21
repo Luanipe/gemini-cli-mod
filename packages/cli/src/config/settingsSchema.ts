@@ -234,13 +234,15 @@ const SETTINGS_SCHEMA = {
         description: oneLine`
           The default approval mode for tool execution.
           'default' prompts for approval, 'auto_edit' auto-approves edit tools,
-          and 'plan' is read-only mode. YOLO mode (auto-approve all actions) can
+          'dont_ask' denies anything that would prompt (for CI/headless), and
+          'plan' is read-only mode. YOLO mode (auto-approve all actions) can
           only be enabled via command line (--yolo or --approval-mode=yolo).
         `,
         showInDialog: true,
         options: [
           { value: 'default', label: 'Default' },
           { value: 'auto_edit', label: 'Auto Edit' },
+          { value: 'dont_ask', label: "Don't Ask" },
           { value: 'plan', label: 'Plan' },
         ],
       },

@@ -50,12 +50,23 @@ export enum ApprovalMode {
   AUTO_EDIT = 'autoEdit',
   YOLO = 'yolo',
   PLAN = 'plan',
+  /**
+   * Never prompt: any `ASK_USER` decision becomes `DENY`.
+   *
+   * Intended for CI/headless runs that must not block on confirmation. It is
+   * not a permissiveness tier: for rule matching it behaves like `DEFAULT`, so
+   * the same rules apply, but anything that would have prompted is denied.
+   */
+  DONT_ASK = 'dontAsk',
 }
 
 /**
  * The order of permissiveness for approval modes.
  * Tools allowed in a less permissive mode should also be allowed
  * in more permissive modes.
+ *
+ * `DONT_ASK` is intentionally absent: it is not a permissiveness tier, it
+ * reuses `DEFAULT`'s rules and converts `ASK_USER` into `DENY`.
  */
 export const MODES_BY_PERMISSIVENESS = [
   ApprovalMode.PLAN,
@@ -295,7 +306,8 @@ export interface PolicyEngineConfig {
 
   /**
    * Default decision when no rules match.
-   * Defaults to ASK_USER.
+   * Defaults to ASK_USER, or DENY when `nonInteractive` is true or
+   * `approvalMode` is `dontAsk`.
    */
   defaultDecision?: PolicyDecision;
 

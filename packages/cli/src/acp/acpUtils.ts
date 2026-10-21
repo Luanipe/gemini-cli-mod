@@ -248,6 +248,12 @@ export function buildAvailableModes(isPlanEnabled: boolean): acp.SessionMode[] {
     });
   }
 
+  modes.push({
+    id: ApprovalMode.DONT_ASK,
+    name: "Don't Ask",
+    description: 'Denies prompts instead of asking (CI/headless)',
+  });
+
   return modes;
 }
 

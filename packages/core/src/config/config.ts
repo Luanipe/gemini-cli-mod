@@ -2822,7 +2822,8 @@ export class Config implements McpContext, AgentLoopContext {
     if (
       !this.isTrustedFolder() &&
       mode !== ApprovalMode.DEFAULT &&
-      mode !== ApprovalMode.PLAN
+      mode !== ApprovalMode.PLAN &&
+      mode !== ApprovalMode.DONT_ASK
     ) {
       throw new Error(
         'Cannot enable privileged approval modes in an untrusted folder.',

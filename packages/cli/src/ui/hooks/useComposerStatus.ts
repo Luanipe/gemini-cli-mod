@@ -71,6 +71,8 @@ export const useComposerStatus = () => {
         return { text: 'plan', color: theme.status.success };
       case ApprovalMode.AUTO_EDIT:
         return { text: 'auto edit', color: theme.status.warning };
+      case ApprovalMode.DONT_ASK:
+        return { text: "don't ask", color: theme.text.secondary };
       case ApprovalMode.DEFAULT:
       default:
         return null;
