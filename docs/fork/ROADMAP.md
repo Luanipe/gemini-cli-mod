@@ -66,7 +66,7 @@ and commands used to review and audit our work.
 
 | ID   | Item                                                       | Status | Issue | Branch              | PR  | Evidence    |
 | ---- | ---------------------------------------------------------- | ------ | ----- | ------------------- | --- | ----------- |
-| DX-1 | `AGENTS.md` + OpenCode review/audit subagents and commands | REVIEW | #13   | `feat/dx-ai-driven` | #14 | `114e2bcd6` |
+| DX-1 | `AGENTS.md` + OpenCode review/audit subagents and commands | DONE   | #13   | `feat/dx-ai-driven` | #14 | `114e2bcd6` |
 
 ### Anti-hallucination
 
