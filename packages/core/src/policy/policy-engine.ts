@@ -1138,7 +1138,7 @@ export class PolicyEngine {
    * This takes into account:
    * 1. Global rules (no argsPattern)
    * 2. Priority order (higher priority wins)
-   * 3. Non-interactive mode (ASK_USER becomes DENY)
+   * 3. Non-interactive runs and `dontAsk` (ASK_USER becomes DENY)
    * 4. Annotation-based rules (when toolMetadata is provided)
    *
    * @param toolMetadata Optional map of tool names to their annotations.
@@ -1209,11 +1209,13 @@ export class PolicyEngine {
 
       if (!matchFound) {
         // Fallback to the effective default decision if no rule matches.
-        // `check()` converts ASK_USER to DENY when prompting is denied
-        // (`dontAsk` or non-interactive), so tool visibility must agree.
-        const defaultDec = this.deniesInsteadOfAsking()
-          ? PolicyDecision.DENY
-          : this.defaultDecision;
+        // `check()` only converts ASK_USER to DENY when prompting is denied
+        // (`dontAsk` or non-interactive), so mirror that exactly here.
+        const defaultDec =
+          this.deniesInsteadOfAsking() &&
+          this.defaultDecision === PolicyDecision.ASK_USER
+            ? PolicyDecision.DENY
+            : this.defaultDecision;
         if (defaultDec === PolicyDecision.DENY) {
           staticallyExcluded = true;
         }

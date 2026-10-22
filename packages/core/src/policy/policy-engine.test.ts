@@ -3392,6 +3392,22 @@ describe('PolicyEngine', () => {
       expect(excluded.has(toolName)).toBe(true);
     });
 
+    it('should not exclude unruled tools when the explicit default is ALLOW even if prompting is denied', async () => {
+      engine = new PolicyEngine({
+        approvalMode: ApprovalMode.DONT_ASK,
+        nonInteractive: true,
+        defaultDecision: PolicyDecision.ALLOW,
+      });
+
+      const toolName = 'unknown-tool';
+      expect((await engine.check({ name: toolName }, undefined)).decision).toBe(
+        PolicyDecision.ALLOW,
+      );
+
+      const excluded = engine.getExcludedTools(undefined, new Set([toolName]));
+      expect(excluded.has(toolName)).toBe(false);
+    });
+
     it('should skip annotation-based rules when no metadata is provided', () => {
       engine = new PolicyEngine({
         rules: [

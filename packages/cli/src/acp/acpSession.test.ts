@@ -146,6 +146,7 @@ describe('Session', () => {
       getGitService: vi.fn().mockResolvedValue({} as GitService),
       getPolicyEngine: vi.fn().mockReturnValue({
         check: vi.fn(),
+        deniesInsteadOfAsking: vi.fn().mockReturnValue(false),
       }),
       validatePathAccess: vi.fn().mockReturnValue(null),
       getWorkspaceContext: vi.fn().mockReturnValue({
@@ -546,6 +547,56 @@ describe('Session', () => {
 
     expect(mockConnection.requestPermission).toHaveBeenCalled();
     expect(confirmationDetails.onConfirm).toHaveBeenCalled();
+  });
+
+  it('should deny tool confirmation in dontAsk without requesting permission', async () => {
+    (
+      mockConfig.getPolicyEngine() as unknown as {
+        deniesInsteadOfAsking: Mock<() => boolean>;
+      }
+    ).deniesInsteadOfAsking.mockReturnValue(true);
+
+    const confirmationDetails = {
+      type: 'info',
+      onConfirm: vi.fn(),
+    };
+    mockTool.build.mockReturnValue({
+      getDescription: () => 'Test Tool',
+      toolLocations: () => [],
+      shouldConfirmExecute: vi.fn().mockResolvedValue(confirmationDetails),
+      execute: vi.fn().mockResolvedValue({ llmContent: 'Tool Result' }),
+    });
+
+    const stream1 = createMockStream([
+      {
+        type: GeminiEventType.ToolCallRequest,
+        value: {
+          callId: 'call-1',
+          name: 'test_tool',
+          args: {},
+          isClientInitiated: false,
+          prompt_id: 'prompt-1',
+        },
+      },
+    ]);
+    const stream2 = createMockStream([
+      {
+        type: GeminiEventType.Content,
+        value: '',
+      },
+    ]);
+
+    mockSendMessageStream
+      .mockReturnValueOnce(stream1)
+      .mockReturnValueOnce(stream2);
+
+    await session.prompt({
+      sessionId: 'session-1',
+      prompt: [{ type: 'text', text: 'Call tool' }],
+    });
+
+    expect(mockConnection.requestPermission).not.toHaveBeenCalled();
+    expect(confirmationDetails.onConfirm).not.toHaveBeenCalled();
   });
 
   it('should emit tool_call session update with status pending before requesting permission', async () => {

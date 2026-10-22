@@ -51,8 +51,12 @@ export class SdkAgentShell implements AgentShell {
         abortController.signal,
       );
       if (confirmation) {
+        const promptingDenied =
+          this.config.getPolicyEngine?.().deniesInsteadOfAsking?.() ?? false;
         throw new Error(
-          'Command execution requires confirmation but no interactive session is available.',
+          promptingDenied
+            ? 'Command execution denied by policy: confirmation is disabled in the current approval mode.'
+            : 'Command execution requires confirmation but no interactive session is available.',
         );
       }
     } catch (error) {

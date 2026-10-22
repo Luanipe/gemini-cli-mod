@@ -707,6 +707,33 @@ export class Session {
       const confirmationDetails =
         await invocation.shouldConfirmExecute(abortSignal);
 
+      // ACP executes tools directly instead of through the Scheduler, so it
+      // must enforce the `dontAsk` no-prompt guarantee here. Tools that ask
+      // unconditionally (`ask_user`, tainted shell commands, sandbox
+      // expansion) would otherwise call `requestPermission` anyway.
+      if (
+        confirmationDetails &&
+        (this.context.config.getPolicyEngine?.().deniesInsteadOfAsking?.() ??
+          false)
+      ) {
+        const deniedError = new Error(
+          `Tool "${fc.name}" requires user confirmation, which is denied by the current approval mode.`,
+        );
+        await this.sendUpdate({
+          sessionUpdate: 'tool_call_update',
+          toolCallId: callId,
+          status: 'failed',
+          content: [
+            {
+              type: 'content',
+              content: { type: 'text', text: deniedError.message },
+            },
+          ],
+          kind: toAcpToolKind(tool.kind),
+        });
+        return errorResponse(deniedError);
+      }
+
       if (confirmationDetails) {
         const content: acp.ToolCallContent[] = [];
 
@@ -1074,6 +1101,19 @@ export class Session {
         validationError &&
         !isWithinRoot(absolutePath, this.context.config.getTargetDir())
       ) {
+        // Fail closed instead of prompting when the approval mode forbids
+        // confirmations (`dontAsk` or non-interactive runs).
+        if (
+          this.context.config.getPolicyEngine?.().deniesInsteadOfAsking?.() ??
+          false
+        ) {
+          directContents.push({
+            spec: pathName,
+            content: `[Warning: Access to absolute path \`${pathName}\` denied by the current approval mode.]`,
+          });
+          continue;
+        }
+
         try {
           const stats = await fs.stat(absolutePath);
           if (stats.isFile()) {

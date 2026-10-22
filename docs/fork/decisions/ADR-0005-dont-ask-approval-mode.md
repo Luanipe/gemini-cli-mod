@@ -36,10 +36,11 @@ permissiveness tier**.
   downgrading it to `default`, because the mode is strictly more restrictive
   than `default` and must keep its no-prompt guarantee. `Config.setApprovalMode`
   accepts it for the same reason. The YOLO killswitch is unaffected.
-- **Spelling.** The CLI flag and setting use `dont_ask` (matching `auto_edit`);
-  the parser also accepts `dontAsk` as an alias, including in hand-edited
-  settings. The enum value and TOML `modes` use `dontAsk`. The settings schema
-  and generated docs expose only the canonical `dont_ask` value.
+- **Spelling.** The CLI flag and setting use `dont_ask` (matching `auto_edit`).
+  The CLI parser also accepts `dontAsk` as an alias. The enum value and TOML
+  `modes` use `dontAsk`. The settings schema and generated docs expose only the
+  canonical `dont_ask` value, so hand-edited settings should use `dont_ask` to
+  pass schema validation without a warning.
 
 ## Consequences
 
