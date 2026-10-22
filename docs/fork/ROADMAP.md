@@ -101,11 +101,11 @@ Improve the agent loop, tool orchestration, and robustness.
 
 Improve the approval model and permissive modes.
 
-| ID  | Item                                                           | Status | Issue | Branch               | PR  | Evidence    |
-| --- | -------------------------------------------------------------- | ------ | ----- | -------------------- | --- | ----------- |
-| Y-1 | `dontAsk` mode (ask → deny, for CI/headless)                   | REVIEW | #7    | `feat/yolo-dont-ask` | #29 | `3e8ace41d` |
-| Y-2 | Two danger tiers (`bypass` still honors safety checks; `full`) | TODO   | #8    |                      |     |             |
-| Y-3 | LLM auto-mode classifier with circuit breaker + denial limits  | TODO   | #9    |                      |     |             |
+| ID  | Item                                                           | Status | Issue | Branch               | PR  | Evidence                 |
+| --- | -------------------------------------------------------------- | ------ | ----- | -------------------- | --- | ------------------------ |
+| Y-1 | `dontAsk` mode (ask → deny, for CI/headless)                   | REVIEW | #7    | `feat/yolo-dont-ask` | #29 | `3e8ace41d`, `5958cd35d` |
+| Y-2 | Two danger tiers (`bypass` still honors safety checks; `full`) | TODO   | #8    |                      |     |                          |
+| Y-3 | LLM auto-mode classifier with circuit breaker + denial limits  | TODO   | #9    |                      |     |                          |
 
 ### Few-shot prompting
 
