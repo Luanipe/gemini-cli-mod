@@ -3376,6 +3376,22 @@ describe('PolicyEngine', () => {
       },
     );
 
+    it('should exclude unruled tools in interactive dontAsk with an explicit ASK_USER default', async () => {
+      engine = new PolicyEngine({
+        approvalMode: ApprovalMode.DONT_ASK,
+        nonInteractive: false,
+        defaultDecision: PolicyDecision.ASK_USER,
+      });
+
+      const toolName = 'unknown-tool';
+      expect((await engine.check({ name: toolName }, undefined)).decision).toBe(
+        PolicyDecision.DENY,
+      );
+
+      const excluded = engine.getExcludedTools(undefined, new Set([toolName]));
+      expect(excluded.has(toolName)).toBe(true);
+    });
+
     it('should skip annotation-based rules when no metadata is provided', () => {
       engine = new PolicyEngine({
         rules: [

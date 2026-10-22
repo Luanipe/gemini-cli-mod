@@ -27,6 +27,7 @@ import {
   GeminiEventType,
   type ServerGeminiStreamEvent,
   PolicyDecision,
+  ApprovalMode,
   MessageBusType,
   type ToolConfirmationRequest,
   DiscoveredMCPTool,
@@ -946,6 +947,13 @@ describe('Session', () => {
     });
 
     expect(result.stopReason).toBe('max_turn_requests');
+  });
+
+  it('should apply dontAsk mode via ACP setMode', () => {
+    expect(session.setMode('dontAsk')).toEqual({});
+    expect(mockConfig.setApprovalMode).toHaveBeenCalledWith(
+      ApprovalMode.DONT_ASK,
+    );
   });
 
   it('should send sessionUpdate when approval mode changes', async () => {

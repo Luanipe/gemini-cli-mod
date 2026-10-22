@@ -162,6 +162,7 @@ describe('Scheduler (Orchestrator)', () => {
     // --- Setup Injected Mocks ---
     mockPolicyEngine = {
       check: vi.fn().mockResolvedValue({ decision: PolicyDecision.ALLOW }),
+      deniesInsteadOfAsking: vi.fn().mockReturnValue(false),
     } as unknown as Mocked<PolicyEngine>;
 
     mockToolRegistry = {
@@ -906,6 +907,103 @@ describe('Scheduler (Orchestrator)', () => {
 
       expect(resolveConfirmation).not.toHaveBeenCalled();
       expect(mockExecutor.execute).not.toHaveBeenCalled();
+      expect(mockStateManager.updateStatus).toHaveBeenCalledWith(
+        'call-1',
+        CoreToolCallStatus.Error,
+        expect.objectContaining({
+          errorType: ToolErrorType.POLICY_VIOLATION,
+        }),
+      );
+    });
+
+    it('should deny taint risk in dontAsk mode without prompting', async () => {
+      vi.mocked(checkPolicy).mockResolvedValue({
+        decision: PolicyDecision.ALLOW,
+        rule: undefined,
+      });
+
+      mockConfig.getApprovalMode.mockReturnValue(ApprovalMode.DONT_ASK);
+      mockConfig.isInteractive = vi.fn().mockReturnValue(true);
+      vi.mocked(mockPolicyEngine.deniesInsteadOfAsking).mockReturnValue(true);
+
+      const taintInvocation = {
+        ...mockInvocation,
+        hasTaintedOrBuildFileRisk: vi.fn().mockReturnValue(true),
+      };
+      mockTool.build = vi.fn().mockReturnValue(taintInvocation);
+
+      await scheduler.schedule(req1, signal);
+
+      expect(resolveConfirmation).not.toHaveBeenCalled();
+      expect(mockExecutor.execute).not.toHaveBeenCalled();
+      expect(mockStateManager.updateStatus).toHaveBeenCalledWith(
+        'call-1',
+        CoreToolCallStatus.Error,
+        expect.objectContaining({
+          errorType: ToolErrorType.POLICY_VIOLATION,
+        }),
+      );
+    });
+
+    it('should deny a hook ask decision in dontAsk mode without prompting', async () => {
+      vi.mocked(checkPolicy).mockResolvedValue({
+        decision: PolicyDecision.ALLOW,
+        rule: undefined,
+      });
+
+      mockConfig.getApprovalMode.mockReturnValue(ApprovalMode.DONT_ASK);
+      vi.mocked(mockPolicyEngine.deniesInsteadOfAsking).mockReturnValue(true);
+
+      const mockHookSystem = {
+        fireBeforeToolEvent: vi.fn().mockResolvedValue({
+          shouldStopExecution: () => false,
+          getBlockingError: () => undefined,
+          isAskDecision: () => true,
+          systemMessage: 'Hook prompt',
+        }),
+      };
+      mockConfig.getHookSystem = vi.fn().mockReturnValue(mockHookSystem);
+
+      await scheduler.schedule(req1, signal);
+
+      expect(resolveConfirmation).not.toHaveBeenCalled();
+      expect(mockExecutor.execute).not.toHaveBeenCalled();
+      expect(mockStateManager.updateStatus).toHaveBeenCalledWith(
+        'call-1',
+        CoreToolCallStatus.Error,
+        expect.objectContaining({
+          errorType: ToolErrorType.POLICY_VIOLATION,
+        }),
+      );
+    });
+
+    it('should deny sandbox expansion in dontAsk mode without prompting', async () => {
+      mockConfig.getApprovalMode.mockReturnValue(ApprovalMode.DONT_ASK);
+      vi.mocked(mockPolicyEngine.deniesInsteadOfAsking).mockReturnValue(true);
+
+      mockExecutor.execute.mockResolvedValue({
+        status: CoreToolCallStatus.Error,
+        response: {
+          callId: 'call-1',
+          error: new Error(
+            JSON.stringify({
+              rootCommand: 'npm test',
+              additionalPermissions: {
+                fileSystem: { write: ['/tmp/outside-workspace'] },
+              },
+            }),
+          ),
+          errorType: ToolErrorType.SANDBOX_EXPANSION_REQUIRED,
+          responseParts: [],
+          resultDisplay: 'Sandbox denied the command',
+          contentLength: 0,
+        },
+      } as unknown as ErroredToolCall);
+
+      await scheduler.schedule(req1, signal);
+
+      expect(resolveConfirmation).not.toHaveBeenCalled();
+      expect(mockExecutor.execute).toHaveBeenCalledTimes(1);
       expect(mockStateManager.updateStatus).toHaveBeenCalledWith(
         'call-1',
         CoreToolCallStatus.Error,

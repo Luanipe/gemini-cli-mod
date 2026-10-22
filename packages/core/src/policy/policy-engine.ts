@@ -319,7 +319,7 @@ export class PolicyEngine {
    * Whether a decision that would prompt the user must instead be denied.
    * True for non-interactive runs and for the explicit `dontAsk` mode.
    */
-  private deniesInsteadOfAsking(): boolean {
+  deniesInsteadOfAsking(): boolean {
     return this.nonInteractive || this.approvalMode === ApprovalMode.DONT_ASK;
   }
 
@@ -510,7 +510,8 @@ export class PolicyEngine {
         `[PolicyEngine.check] Command parsing failed for: ${command}. Falling back to ${this.defaultDecision}.`,
       );
 
-      // Parsing logic failed, we can't trust it. Use default decision ASK_USER (or DENY in non-interactive).
+      // Parsing logic failed, we can't trust it. Use the default decision
+      // ASK_USER (or DENY in non-interactive runs and `dontAsk`).
       return {
         decision: this.defaultDecision,
         rule,
@@ -1207,8 +1208,12 @@ export class PolicyEngine {
       }
 
       if (!matchFound) {
-        // Fallback to default decision if no rule matches
-        const defaultDec = this.defaultDecision;
+        // Fallback to the effective default decision if no rule matches.
+        // `check()` converts ASK_USER to DENY when prompting is denied
+        // (`dontAsk` or non-interactive), so tool visibility must agree.
+        const defaultDec = this.deniesInsteadOfAsking()
+          ? PolicyDecision.DENY
+          : this.defaultDecision;
         if (defaultDec === PolicyDecision.DENY) {
           staticallyExcluded = true;
         }
