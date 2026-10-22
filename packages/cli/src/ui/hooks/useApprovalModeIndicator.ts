@@ -88,6 +88,9 @@ export function useApprovalModeIndicator({
           case ApprovalMode.YOLO:
             nextApprovalMode = ApprovalMode.AUTO_EDIT;
             break;
+          case ApprovalMode.DONT_ASK:
+            nextApprovalMode = ApprovalMode.DEFAULT;
+            break;
           default:
         }
       }

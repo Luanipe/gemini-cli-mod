@@ -136,9 +136,16 @@ function ruleMatches(
   toolAnnotations?: Record<string, unknown>,
   subagent?: string,
 ): boolean {
-  // Check if rule applies to current approval mode
+  // Check if rule applies to current approval mode.
+  // DONT_ASK is not a permissiveness tier: it reuses DEFAULT's rules and
+  // only changes ASK_USER decisions into DENY. Rules may still opt in
+  // explicitly by listing `dontAsk` in their modes.
   if (rule.modes && rule.modes.length > 0) {
-    if (!rule.modes.includes(currentApprovalMode)) {
+    const matchesMode =
+      rule.modes.includes(currentApprovalMode) ||
+      (currentApprovalMode === ApprovalMode.DONT_ASK &&
+        rule.modes.includes(ApprovalMode.DEFAULT));
+    if (!matchesMode) {
       return false;
     }
   }
@@ -296,14 +303,24 @@ export class PolicyEngine {
     }
 
     this.nonInteractive = config.nonInteractive ?? false;
+    this.approvalMode = config.approvalMode ?? ApprovalMode.DEFAULT;
     this.defaultDecision =
       config.defaultDecision ??
-      (this.nonInteractive ? PolicyDecision.DENY : PolicyDecision.ASK_USER);
+      (this.deniesInsteadOfAsking()
+        ? PolicyDecision.DENY
+        : PolicyDecision.ASK_USER);
     this.disableAlwaysAllow = config.disableAlwaysAllow ?? false;
     this.checkerRunner = checkerRunner;
-    this.approvalMode = config.approvalMode ?? ApprovalMode.DEFAULT;
     this.sandboxManager = config.sandboxManager ?? new NoopSandboxManager();
     this.isTrustedFolderFn = config.isTrustedFolder;
+  }
+
+  /**
+   * Whether a decision that would prompt the user must instead be denied.
+   * True for non-interactive runs and for the explicit `dontAsk` mode.
+   */
+  deniesInsteadOfAsking(): boolean {
+    return this.nonInteractive || this.approvalMode === ApprovalMode.DONT_ASK;
   }
 
   isTrustedFolder(): boolean {
@@ -493,7 +510,8 @@ export class PolicyEngine {
         `[PolicyEngine.check] Command parsing failed for: ${command}. Falling back to ${this.defaultDecision}.`,
       );
 
-      // Parsing logic failed, we can't trust it. Use default decision ASK_USER (or DENY in non-interactive).
+      // Parsing logic failed, we can't trust it. Use the default decision
+      // ASK_USER (or DENY in non-interactive runs and `dontAsk`).
       return {
         decision: this.defaultDecision,
         rule,
@@ -1007,7 +1025,7 @@ export class PolicyEngine {
       }
     }
 
-    if (this.nonInteractive && decision === PolicyDecision.ASK_USER) {
+    if (this.deniesInsteadOfAsking() && decision === PolicyDecision.ASK_USER) {
       decision = PolicyDecision.DENY;
     }
 
@@ -1120,7 +1138,7 @@ export class PolicyEngine {
    * This takes into account:
    * 1. Global rules (no argsPattern)
    * 2. Priority order (higher priority wins)
-   * 3. Non-interactive mode (ASK_USER becomes DENY)
+   * 3. Non-interactive runs and `dontAsk` (ASK_USER becomes DENY)
    * 4. Annotation-based rules (when toolMetadata is provided)
    *
    * @param toolMetadata Optional map of tool names to their annotations.
@@ -1190,8 +1208,14 @@ export class PolicyEngine {
       }
 
       if (!matchFound) {
-        // Fallback to default decision if no rule matches
-        const defaultDec = this.defaultDecision;
+        // Fallback to the effective default decision if no rule matches.
+        // `check()` only converts ASK_USER to DENY when prompting is denied
+        // (`dontAsk` or non-interactive), so mirror that exactly here.
+        const defaultDec =
+          this.deniesInsteadOfAsking() &&
+          this.defaultDecision === PolicyDecision.ASK_USER
+            ? PolicyDecision.DENY
+            : this.defaultDecision;
         if (defaultDec === PolicyDecision.DENY) {
           staticallyExcluded = true;
         }

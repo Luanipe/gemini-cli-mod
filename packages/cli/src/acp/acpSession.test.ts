@@ -27,6 +27,7 @@ import {
   GeminiEventType,
   type ServerGeminiStreamEvent,
   PolicyDecision,
+  ApprovalMode,
   MessageBusType,
   type ToolConfirmationRequest,
   DiscoveredMCPTool,
@@ -145,6 +146,7 @@ describe('Session', () => {
       getGitService: vi.fn().mockResolvedValue({} as GitService),
       getPolicyEngine: vi.fn().mockReturnValue({
         check: vi.fn(),
+        deniesInsteadOfAsking: vi.fn().mockReturnValue(false),
       }),
       validatePathAccess: vi.fn().mockReturnValue(null),
       getWorkspaceContext: vi.fn().mockReturnValue({
@@ -547,6 +549,109 @@ describe('Session', () => {
     expect(confirmationDetails.onConfirm).toHaveBeenCalled();
   });
 
+  it('should deny tool confirmation in dontAsk without requesting permission', async () => {
+    (
+      mockConfig.getPolicyEngine() as unknown as {
+        deniesInsteadOfAsking: Mock<() => boolean>;
+      }
+    ).deniesInsteadOfAsking.mockReturnValue(true);
+
+    const confirmationDetails = {
+      type: 'info',
+      onConfirm: vi.fn(),
+    };
+    const execute = vi.fn().mockResolvedValue({ llmContent: 'Tool Result' });
+    mockTool.build.mockReturnValue({
+      getDescription: () => 'Test Tool',
+      toolLocations: () => [],
+      shouldConfirmExecute: vi.fn().mockResolvedValue(confirmationDetails),
+      execute,
+    });
+
+    const stream1 = createMockStream([
+      {
+        type: GeminiEventType.ToolCallRequest,
+        value: {
+          callId: 'call-1',
+          name: 'test_tool',
+          args: {},
+          isClientInitiated: false,
+          prompt_id: 'prompt-1',
+        },
+      },
+    ]);
+    const stream2 = createMockStream([
+      {
+        type: GeminiEventType.Content,
+        value: '',
+      },
+    ]);
+
+    mockSendMessageStream
+      .mockReturnValueOnce(stream1)
+      .mockReturnValueOnce(stream2);
+
+    await session.prompt({
+      sessionId: 'session-1',
+      prompt: [{ type: 'text', text: 'Call tool' }],
+    });
+
+    expect(mockConnection.requestPermission).not.toHaveBeenCalled();
+    expect(confirmationDetails.onConfirm).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(mockConnection.sessionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          sessionUpdate: 'tool_call_update',
+          status: 'failed',
+        }),
+      }),
+    );
+  });
+
+  it('should fail closed for out-of-workspace attachments in dontAsk', async () => {
+    (mockConfig.validatePathAccess as Mock).mockReturnValue(
+      'outside the workspace',
+    );
+    (
+      mockConfig.getPolicyEngine() as unknown as {
+        deniesInsteadOfAsking: Mock<() => boolean>;
+      }
+    ).deniesInsteadOfAsking.mockReturnValue(true);
+
+    const stream = createMockStream([
+      {
+        type: GeminiEventType.Content,
+        value: '',
+      },
+    ]);
+    mockSendMessageStream.mockReturnValue(stream);
+
+    await session.prompt({
+      sessionId: 'session-1',
+      prompt: [
+        { type: 'text', text: 'Read' },
+        {
+          type: 'resource_link',
+          uri: 'file:///outside/file.txt',
+          mimeType: 'text/plain',
+          name: 'file.txt',
+        },
+      ],
+    });
+
+    expect(mockConnection.requestPermission).not.toHaveBeenCalled();
+    expect(mockSendMessageStream).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: expect.stringContaining('denied by the current approval mode'),
+        }),
+      ]),
+      expect.any(AbortSignal),
+      expect.any(String),
+    );
+  });
+
   it('should emit tool_call session update with status pending before requesting permission', async () => {
     const confirmationDetails = {
       type: 'info',
@@ -946,6 +1051,13 @@ describe('Session', () => {
     });
 
     expect(result.stopReason).toBe('max_turn_requests');
+  });
+
+  it('should apply dontAsk mode via ACP setMode', () => {
+    expect(session.setMode('dontAsk')).toEqual({});
+    expect(mockConfig.setApprovalMode).toHaveBeenCalledWith(
+      ApprovalMode.DONT_ASK,
+    );
   });
 
   it('should send sessionUpdate when approval mode changes', async () => {

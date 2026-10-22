@@ -340,9 +340,16 @@ export async function parseArguments(
         .option('approval-mode', {
           type: 'string',
           nargs: 1,
-          choices: ['default', 'auto_edit', 'yolo', 'plan'],
+          choices: [
+            'default',
+            'auto_edit',
+            'yolo',
+            'plan',
+            'dont_ask',
+            'dontAsk',
+          ],
           description:
-            'Set the approval mode: default (prompt for approval), auto_edit (auto-approve edit tools), yolo (auto-approve all tools), plan (read-only mode)',
+            'Set the approval mode: default (prompt for approval), auto_edit (auto-approve edit tools), yolo (auto-approve all tools), plan (read-only mode), dont_ask (deny instead of prompting; alias: dontAsk)',
         })
         .option('policy', {
           type: 'array',
@@ -724,9 +731,13 @@ export async function loadCliConfig(
       case 'default':
         approvalMode = ApprovalMode.DEFAULT;
         break;
+      case 'dont_ask':
+      case 'dontAsk':
+        approvalMode = ApprovalMode.DONT_ASK;
+        break;
       default:
         throw new Error(
-          `Invalid approval mode: ${rawApprovalMode}. Valid values are: yolo, auto_edit, plan, default`,
+          `Invalid approval mode: ${rawApprovalMode}. Valid values are: yolo, auto_edit, plan, default, dont_ask`,
         );
     }
   } else {
@@ -756,7 +767,13 @@ export async function loadCliConfig(
   }
 
   // Force approval mode to default if the folder is not trusted.
-  if (!trustedFolder && approvalMode !== ApprovalMode.DEFAULT) {
+  // `dont_ask` is preserved: it never approves anything and must keep its
+  // no-prompt guarantee.
+  if (
+    !trustedFolder &&
+    approvalMode !== ApprovalMode.DEFAULT &&
+    approvalMode !== ApprovalMode.DONT_ASK
+  ) {
     debugLogger.warn(
       `Approval mode overridden to "default" because the current folder is not trusted.`,
     );

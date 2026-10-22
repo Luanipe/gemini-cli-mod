@@ -695,6 +695,17 @@ export class Scheduler {
           : PolicyDecision.DENY;
     }
 
+    // Hook overrides and taint risks are applied after `checkPolicy`, so the
+    // policy engine's ASK_USER -> DENY conversion has already run. Convert
+    // here as well to preserve the `dontAsk` no-prompt guarantee (and avoid
+    // waiting for a confirmation in non-interactive runs).
+    if (
+      decision === PolicyDecision.ASK_USER &&
+      this.config.getPolicyEngine().deniesInsteadOfAsking()
+    ) {
+      decision = PolicyDecision.DENY;
+    }
+
     if (decision === PolicyDecision.DENY) {
       const { errorMessage, errorType } = getPolicyDenialError(
         this.config,
@@ -893,6 +904,21 @@ export class Scheduler {
     }
 
     if (isSandboxError) {
+      if (this.config.getPolicyEngine().deniesInsteadOfAsking()) {
+        this.state.updateStatus(
+          callId,
+          CoreToolCallStatus.Error,
+          createErrorResponse(
+            activeCall.request,
+            new Error(
+              'Sandbox expansion requires user confirmation, which is denied by the current approval mode.',
+            ),
+            ToolErrorType.POLICY_VIOLATION,
+          ),
+        );
+        return false;
+      }
+
       try {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         const parsedError = JSON.parse(sandboxDetailsStr) as {

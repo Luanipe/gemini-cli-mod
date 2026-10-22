@@ -20,6 +20,11 @@ exports[`ApprovalModeIndicator > renders correctly for DEFAULT mode with plan en
 "
 `;
 
+exports[`ApprovalModeIndicator > renders correctly for DONT_ASK mode 1`] = `
+"don't ask Shift+Tab to manual
+"
+`;
+
 exports[`ApprovalModeIndicator > renders correctly for PLAN mode 1`] = `
 "plan Shift+Tab to manual
 "

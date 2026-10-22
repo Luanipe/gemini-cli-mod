@@ -180,6 +180,10 @@ modes specified, it is always active.
 - `plan`: A strict, read-only mode for research and design. See
   [Customizing Plan Mode Policies](../cli/plan-mode.md#customizing-policies).
 - `yolo`: A mode where all tools are auto-approved (use with extreme caution).
+- `dontAsk`: Never prompts. Any decision that would ask the user becomes a
+  denial. For rule matching it behaves like `default` (rules scoped to `default`
+  also apply to `dontAsk`). Intended for CI/headless runs. It is not part of the
+  permissiveness hierarchy below; it is a stricter variant of `default`.
 
 To maintain the integrity of Plan Mode as a safe research environment,
 persistent tool approvals are context-aware. When you select **"Allow for all

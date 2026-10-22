@@ -52,8 +52,9 @@ A task is `DONE` only when all of the following hold:
 
 ## Components
 
-**Current focus:** Anti-hallucination (AH) — AH-1/2/3/4/5/9 are DONE. The
-remaining AH items (AH-6/7/8) are optional backlog.
+**Current focus:** YOLO / acceptances — Y-1 (`dontAsk`) is in REVIEW (PR #29).
+Y-2 (danger tiers) is next. The remaining AH items (AH-6/7/8) are optional
+backlog.
 
 Status is updated as work lands. "Evidence" points to the commit/PR that
 delivered the item. Per the legend, `DONE` means **merged**; implemented and
@@ -100,11 +101,11 @@ Improve the agent loop, tool orchestration, and robustness.
 
 Improve the approval model and permissive modes.
 
-| ID  | Item                                                           | Status | Issue | Branch | PR  | Evidence |
-| --- | -------------------------------------------------------------- | ------ | ----- | ------ | --- | -------- |
-| Y-1 | `dontAsk` mode (ask → deny, for CI/headless)                   | TODO   | #7    |        |     |          |
-| Y-2 | Two danger tiers (`bypass` still honors safety checks; `full`) | TODO   | #8    |        |     |          |
-| Y-3 | LLM auto-mode classifier with circuit breaker + denial limits  | TODO   | #9    |        |     |          |
+| ID  | Item                                                           | Status | Issue | Branch               | PR  | Evidence                                           |
+| --- | -------------------------------------------------------------- | ------ | ----- | -------------------- | --- | -------------------------------------------------- |
+| Y-1 | `dontAsk` mode (ask → deny, for CI/headless)                   | REVIEW | #7    | `feat/yolo-dont-ask` | #29 | `3e8ace41d`, `5958cd35d`, `9a51a866e`, `c6e011126` |
+| Y-2 | Two danger tiers (`bypass` still honors safety checks; `full`) | TODO   | #8    |                      |     |                                                    |
+| Y-3 | LLM auto-mode classifier with circuit breaker + denial limits  | TODO   | #9    |                      |     |                                                    |
 
 ### Few-shot prompting
 
@@ -145,3 +146,5 @@ Decisions that are hard to reverse or that need context are recorded as ADRs in
   pluggable re-injection adapters.
 - [ADR-0004](./decisions/ADR-0004-user-instruction-ledger.md) — compaction-safe
   user instruction ledger and the `droppedHistory` adapter input.
+- [ADR-0005](./decisions/ADR-0005-dont-ask-approval-mode.md) — `dontAsk` is a
+  decision policy, not a permissiveness tier.

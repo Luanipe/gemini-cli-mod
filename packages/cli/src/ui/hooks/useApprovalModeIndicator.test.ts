@@ -174,6 +174,28 @@ describe('useApprovalModeIndicator', () => {
     expect(mockConfigInstance.getApprovalMode).toHaveBeenCalledTimes(1);
   });
 
+  it('should cycle DONT_ASK back to DEFAULT', async () => {
+    mockConfigInstance.getApprovalMode.mockReturnValue(ApprovalMode.DONT_ASK);
+    const { result } = await renderHook(() =>
+      useApprovalModeIndicator({
+        config: mockConfigInstance as unknown as ActualConfigType,
+        addItem: vi.fn(),
+      }),
+    );
+    expect(result.current).toBe(ApprovalMode.DONT_ASK);
+
+    act(() => {
+      capturedUseKeypressHandler({
+        name: 'tab',
+        shift: true,
+      } as Key);
+    });
+    expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
+      ApprovalMode.DEFAULT,
+    );
+    expect(result.current).toBe(ApprovalMode.DEFAULT);
+  });
+
   it('should cycle the indicator and update config when Shift+Tab or Ctrl+Y is pressed', async () => {
     mockConfigInstance.getApprovalMode.mockReturnValue(ApprovalMode.DEFAULT);
     const { result } = await renderHook(() =>

@@ -45,6 +45,11 @@ export const ApprovalModeIndicator: React.FC<ApprovalModeIndicatorProps> = ({
       textContent = 'YOLO';
       subText = yoloHint;
       break;
+    case ApprovalMode.DONT_ASK:
+      textColor = theme.text.accent;
+      textContent = "don't ask";
+      subText = `${cycleHint} to manual`;
+      break;
     case ApprovalMode.DEFAULT:
     default:
       textColor = theme.text.accent;

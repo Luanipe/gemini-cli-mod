@@ -25,6 +25,7 @@ import {
   type PolicyUpdateOptions,
 } from '../tools/tools.js';
 import { buildFilePathArgsPattern } from '../policy/utils.js';
+import { debugLogger } from '../utils/debugLogger.js';
 import { makeRelative } from '../utils/paths.js';
 import { DiscoveredMCPTool, formatMcpToolName } from '../tools/mcp-tool.js';
 import { EDIT_TOOL_NAMES } from '../tools/tool-names.js';
@@ -120,6 +121,15 @@ export async function updatePolicy(
   toolInvocation?: AnyToolInvocation,
 ): Promise<void> {
   const currentMode = context.config.getApprovalMode();
+
+  // `dontAsk` never prompts, so no confirmation outcome should be able to
+  // persist an always-allow rule. Without this guard, `MODES_BY_PERMISSIVENESS`
+  // does not contain DONT_ASK and the rule would be published with no mode
+  // restriction, widening permissions in every mode.
+  if (currentMode === ApprovalMode.DONT_ASK) {
+    debugLogger.debug('[PolicyUpdate] Ignoring policy update in dontAsk mode.');
+    return;
+  }
 
   // Mode Transitions (AUTO_EDIT)
   if (isAutoEditTransition(tool, outcome)) {

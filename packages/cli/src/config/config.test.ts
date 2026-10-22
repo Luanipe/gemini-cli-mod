@@ -1469,7 +1469,7 @@ describe('Approval mode tool exclusion logic', () => {
     await expect(
       loadCliConfig(settings, 'test-session', invalidArgv as CliArgs),
     ).rejects.toThrow(
-      'Invalid approval mode: invalid_mode. Valid values are: yolo, auto_edit, plan, default',
+      'Invalid approval mode: invalid_mode. Valid values are: yolo, auto_edit, plan, default, dont_ask',
     );
   });
 
@@ -2749,6 +2749,38 @@ describe('loadCliConfig approval mode', () => {
     expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.YOLO);
   });
 
+  it('should set DONT_ASK approval mode when --approval-mode=dont_ask', async () => {
+    process.argv = ['node', 'script.js', '--approval-mode', 'dont_ask'];
+    const argv = await parseArguments(createTestMergedSettings());
+    const config = await loadCliConfig(
+      createTestMergedSettings(),
+      'test-session',
+      argv,
+    );
+    expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.DONT_ASK);
+  });
+
+  it('should accept the dontAsk alias for --approval-mode', async () => {
+    process.argv = ['node', 'script.js', '--approval-mode', 'dontAsk'];
+    const argv = await parseArguments(createTestMergedSettings());
+    const config = await loadCliConfig(
+      createTestMergedSettings(),
+      'test-session',
+      argv,
+    );
+    expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.DONT_ASK);
+  });
+
+  it('should honor general.defaultApprovalMode=dont_ask from settings', async () => {
+    process.argv = ['node', 'script.js'];
+    const settings = createTestMergedSettings({
+      general: { defaultApprovalMode: 'dont_ask' },
+    } as unknown as MergedSettings);
+    const argv = await parseArguments(settings);
+    const config = await loadCliConfig(settings, 'test-session', argv);
+    expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.DONT_ASK);
+  });
+
   it('should prioritize --approval-mode over --yolo when both would be valid (but validation prevents this)', async () => {
     // Note: This test documents the intended behavior, but in practice the validation
     // prevents both flags from being used together
@@ -2888,6 +2920,17 @@ describe('loadCliConfig approval mode', () => {
         argv,
       );
       expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.DEFAULT);
+    });
+
+    it('should preserve --approval-mode=dont_ask (never approves anything)', async () => {
+      process.argv = ['node', 'script.js', '--approval-mode', 'dont_ask'];
+      const argv = await parseArguments(createTestMergedSettings());
+      const config = await loadCliConfig(
+        createTestMergedSettings(),
+        'test-session',
+        argv,
+      );
+      expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.DONT_ASK);
     });
   });
 
