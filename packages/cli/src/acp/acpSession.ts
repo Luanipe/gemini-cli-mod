@@ -73,6 +73,17 @@ export class Session {
     return `${name}-${Date.now()}-${++this.callIdCounter}`;
   }
 
+  /**
+   * Whether the current approval mode forbids user confirmation prompts
+   * (`dontAsk` or non-interactive runs). ACP executes tools directly, so it
+   * must fail closed instead of calling `requestPermission`.
+   */
+  private promptingDenied(): boolean {
+    return (
+      this.context.config.getPolicyEngine?.().deniesInsteadOfAsking?.() ?? false
+    );
+  }
+
   constructor(
     private readonly id: string,
     private readonly chat: GeminiChat,
@@ -711,11 +722,7 @@ export class Session {
       // must enforce the `dontAsk` no-prompt guarantee here. Tools that ask
       // unconditionally (`ask_user`, tainted shell commands, sandbox
       // expansion) would otherwise call `requestPermission` anyway.
-      if (
-        confirmationDetails &&
-        (this.context.config.getPolicyEngine?.().deniesInsteadOfAsking?.() ??
-          false)
-      ) {
+      if (confirmationDetails && this.promptingDenied()) {
         const deniedError = new Error(
           `Tool "${fc.name}" requires user confirmation, which is denied by the current approval mode.`,
         );
@@ -1103,10 +1110,7 @@ export class Session {
       ) {
         // Fail closed instead of prompting when the approval mode forbids
         // confirmations (`dontAsk` or non-interactive runs).
-        if (
-          this.context.config.getPolicyEngine?.().deniesInsteadOfAsking?.() ??
-          false
-        ) {
+        if (this.promptingDenied()) {
           directContents.push({
             spec: pathName,
             content: `[Warning: Access to absolute path \`${pathName}\` denied by the current approval mode.]`,

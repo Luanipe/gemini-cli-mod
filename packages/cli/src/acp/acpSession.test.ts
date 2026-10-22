@@ -560,11 +560,12 @@ describe('Session', () => {
       type: 'info',
       onConfirm: vi.fn(),
     };
+    const execute = vi.fn().mockResolvedValue({ llmContent: 'Tool Result' });
     mockTool.build.mockReturnValue({
       getDescription: () => 'Test Tool',
       toolLocations: () => [],
       shouldConfirmExecute: vi.fn().mockResolvedValue(confirmationDetails),
-      execute: vi.fn().mockResolvedValue({ llmContent: 'Tool Result' }),
+      execute,
     });
 
     const stream1 = createMockStream([
@@ -597,6 +598,58 @@ describe('Session', () => {
 
     expect(mockConnection.requestPermission).not.toHaveBeenCalled();
     expect(confirmationDetails.onConfirm).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(mockConnection.sessionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          sessionUpdate: 'tool_call_update',
+          status: 'failed',
+        }),
+      }),
+    );
+  });
+
+  it('should fail closed for out-of-workspace attachments in dontAsk', async () => {
+    (mockConfig.validatePathAccess as Mock).mockReturnValue(
+      'outside the workspace',
+    );
+    (
+      mockConfig.getPolicyEngine() as unknown as {
+        deniesInsteadOfAsking: Mock<() => boolean>;
+      }
+    ).deniesInsteadOfAsking.mockReturnValue(true);
+
+    const stream = createMockStream([
+      {
+        type: GeminiEventType.Content,
+        value: '',
+      },
+    ]);
+    mockSendMessageStream.mockReturnValue(stream);
+
+    await session.prompt({
+      sessionId: 'session-1',
+      prompt: [
+        { type: 'text', text: 'Read' },
+        {
+          type: 'resource_link',
+          uri: 'file:///outside/file.txt',
+          mimeType: 'text/plain',
+          name: 'file.txt',
+        },
+      ],
+    });
+
+    expect(mockConnection.requestPermission).not.toHaveBeenCalled();
+    expect(mockSendMessageStream).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: expect.stringContaining('denied by the current approval mode'),
+        }),
+      ]),
+      expect.any(AbortSignal),
+      expect.any(String),
+    );
   });
 
   it('should emit tool_call session update with status pending before requesting permission', async () => {
