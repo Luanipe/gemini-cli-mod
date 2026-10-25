@@ -22,8 +22,11 @@ a new session must ask again.
 Add **session-scoped taint trust**, keyed by root command.
 
 - The first untrusted-flag event for a root command in a session prompts.
+- Trust is keyed by the **effective command**, not the outer wrapper: `sudo rg`
+  trusts `rg`, not `sudo`; `timeout 5 rg` trusts `rg`. Wrapper commands
+  contribute to the execution-flag guard but never widen what is trusted.
 - The confirmation offers `Allow <command> for this session`. Selecting it
-  records the root command in an in-memory `WeakMap` keyed by the `Config`
+  records the effective command in an in-memory `WeakMap` keyed by the `Config`
   instance. No policy rule is published and nothing is written to TOML.
 - Later invocations of the same root command skip the taint confirmation, but
   the tool output ends with a short warning listing the flags that were allowed

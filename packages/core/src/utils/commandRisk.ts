@@ -178,6 +178,13 @@ function matchesExecutionFlag(
     return true;
   }
 
+  // Case-insensitive profiles (PowerShell, cmd) are matched by exact flag
+  // name only; their long flags contain letters such as `c` that would
+  // otherwise be mistaken for a POSIX short-flag cluster.
+  if (profile.caseInsensitiveFlags) {
+    return false;
+  }
+
   // Long flags with attached values were already reduced to their name.
   if (name.startsWith('--')) {
     return false;

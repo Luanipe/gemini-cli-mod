@@ -64,6 +64,10 @@ describe('commandRisk', () => {
     );
     expect(hasExecutionFlag(['pwsh'], ['-EncodedCommand', 'abc'])).toBe(true);
     expect(hasExecutionFlag(['cmd'], ['/C', 'echo hi'])).toBe(true);
+    expect(hasExecutionFlag(['powershell'], ['-NonInteractive'])).toBe(false);
+    expect(
+      hasExecutionFlag(['powershell'], ['-ExecutionPolicy', 'Bypass']),
+    ).toBe(false);
   });
 
   it('treats bare script paths as execution for interpreters only', () => {

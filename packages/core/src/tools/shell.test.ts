@@ -1399,10 +1399,91 @@ EOF`;
       expect(guardedConfirmation).not.toBe(false);
       expect(guardedConfirmation && guardedConfirmation.type).toBe('exec');
       const guardedExec = guardedConfirmation as ToolExecuteConfirmationDetails;
-      expect(guardedExec.rootCommands).toEqual(
-        expect.arrayContaining(['sudo', 'rg']),
-      );
+      expect(guardedExec.rootCommands).toEqual(['rg']);
       expect(guardedExec.taintExecutionFlag).toBe(true);
+    });
+
+    it('should not trust an argument that merely names a command', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>sudo apt install -y git</untrusted_context>',
+              },
+              {
+                text: '<untrusted_context>git -c core.pager=evil log</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+
+      const aptInvocation = shellTool.build({
+        command: 'sudo apt install -y git',
+      });
+      const aptConfirmation = await aptInvocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(aptConfirmation).not.toBe(false);
+      expect(aptConfirmation && aptConfirmation.type).toBe('exec');
+      const aptExec = aptConfirmation as ToolExecuteConfirmationDetails;
+      expect(aptExec.rootCommands).toEqual(['apt']);
+
+      trustCommandsForSession(mockConfig, ['apt']);
+
+      const gitInvocation = shellTool.build({
+        command: 'sudo git -c core.pager=evil log',
+      });
+      const gitConfirmation = await gitInvocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(gitConfirmation).not.toBe(false);
+      expect(gitConfirmation && gitConfirmation.type).toBe('exec');
+      const gitExec = gitConfirmation as ToolExecuteConfirmationDetails;
+      expect(gitExec.rootCommands).toEqual(['git']);
+      expect(gitExec.taintTrusted).toBe(false);
+      expect(gitExec.taintExecutionFlag).toBe(true);
+    });
+
+    it('should resolve timeout and keep guarding execution flags', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>timeout 5 rg --pre /tmp/evil.sh</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({
+        command: 'timeout 5 rg --pre /tmp/evil.sh foo .',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.rootCommands).toEqual(['rg']);
+      expect(execConf.taintExecutionFlag).toBe(true);
     });
 
     it('should not trust a wrapper-only session key for the wrapped command', async () => {

@@ -645,6 +645,9 @@ export const ToolConfirmationMessage: React.FC<
           } else if (taintExecutionFlag && !isYolo) {
             sessionTrustHint =
               '\nExecution flags are not covered by session trust. Approve once to run this command.';
+          } else if (!isTrustedFolder) {
+            sessionTrustHint =
+              '\nSession trust is unavailable in an untrusted folder. Approve once to run this command.';
           } else if (config.getDisableAlwaysAllow()) {
             sessionTrustHint =
               '\nSession trust is disabled by settings. Approve once to run this command.';

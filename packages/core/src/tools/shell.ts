@@ -8,6 +8,7 @@ import fsPromises from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { parse as shellParse } from 'shell-quote';
 import { debugLogger } from '../index.js';
 import { type SandboxPermissions } from '../services/sandboxManager.js';
 import { ToolErrorType } from './tool-error.js';
@@ -127,6 +128,17 @@ const WRAPPER_COMMANDS = new Set([
   'nohup',
   'exec',
   'xargs',
+  'timeout',
+  'nice',
+  'ionice',
+  'stdbuf',
+  'setsid',
+  'watch',
+  'chroot',
+  'fakeroot',
+  'doas',
+  'pkexec',
+  'busybox',
 ]);
 
 const WRAPPER_FLAGS_WITH_VALUES: Readonly<Record<string, ReadonlySet<string>>> =
@@ -170,7 +182,44 @@ const WRAPPER_FLAGS_WITH_VALUES: Readonly<Record<string, ReadonlySet<string>>> =
       '-a',
       '--arg-file',
     ]),
+    timeout: new Set(['-s', '--signal', '-k', '--kill-after']),
+    nice: new Set(['-n', '--adjustment']),
+    ionice: new Set([
+      '-c',
+      '--class',
+      '-n',
+      '--classdata',
+      '-p',
+      '--pid',
+      '-P',
+      '--pgid',
+      '-u',
+      '--uid',
+    ]),
+    stdbuf: new Set(['-i', '--input', '-o', '--output', '-e', '--error']),
+    watch: new Set(['-n', '--interval']),
+    chroot: new Set(['--userspec', '--groups']),
+    fakeroot: new Set([
+      '-l',
+      '--lib',
+      '-i',
+      '--input',
+      '-s',
+      '--save-file',
+      '--faked',
+    ]),
+    doas: new Set(['-u', '--user']),
+    pkexec: new Set(['--user']),
   };
+
+/**
+ * Some wrappers take a positional argument before the command they execute
+ * (for example `timeout 5 rg` or `chroot /newroot rg`).
+ */
+const WRAPPER_POSITIONAL_ARGS_TO_SKIP: Readonly<Record<string, number>> = {
+  timeout: 1,
+  chroot: 1,
+};
 
 function getWrapperBaseName(wrapper: string): string {
   const normalized = wrapper.trim().replace(/\\/g, '/');
@@ -178,6 +227,32 @@ function getWrapperBaseName(wrapper: string): string {
   return base.toLowerCase().replace(/\.(exe|cmd|bat)$/, '');
 }
 
+function tokenizeCommand(command: string): string[] {
+  try {
+    return shellParse(command, (key) => `$${key}`).flatMap((entry) => {
+      if (typeof entry === 'string') {
+        return [entry];
+      }
+      if (
+        entry &&
+        typeof entry === 'object' &&
+        'pattern' in entry &&
+        typeof entry.pattern === 'string'
+      ) {
+        return [entry.pattern];
+      }
+      return [];
+    });
+  } catch {
+    return command.trim().split(/\s+/);
+  }
+}
+
+/**
+ * Returns the command-position token of a wrapper. It deliberately does not
+ * scan for "any known command" in the arguments: `sudo apt install git` must
+ * resolve to `apt`, never to `git`.
+ */
 function findNestedCommand(
   wrapper: string,
   args: readonly string[],
@@ -188,7 +263,8 @@ function findNestedCommand(
   }
 
   const valueFlags = WRAPPER_FLAGS_WITH_VALUES[base];
-  const candidates: string[] = [];
+  const positionalsToSkip = WRAPPER_POSITIONAL_ARGS_TO_SKIP[base] ?? 0;
+  let skippedPositionals = 0;
 
   for (let i = 0; i < args.length; i++) {
     const token = args[i];
@@ -198,7 +274,7 @@ function findNestedCommand(
     if (token === '--') {
       const next = args[i + 1];
       if (next) {
-        candidates.push(next);
+        return next;
       }
       break;
     }
@@ -208,13 +284,14 @@ function findNestedCommand(
       }
       continue;
     }
-    candidates.push(token);
+    if (skippedPositionals < positionalsToSkip) {
+      skippedPositionals++;
+      continue;
+    }
+    return token;
   }
 
-  return (
-    candidates.find((candidate) => getCommandExecutionProfile(candidate)) ??
-    candidates[candidates.length - 1]
-  );
+  return undefined;
 }
 
 export interface ShellToolParams {
@@ -236,6 +313,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
     key: string;
     flags: string[];
     roots: string[];
+    executionRoots: string[];
     executionFlag: boolean;
   };
 
@@ -434,17 +512,21 @@ export class ShellToolInvocation extends BaseToolInvocation<
   } {
     const command = stripShellWrapper(this.params.command);
     const history = this.getHistory();
+    // The cache lives for one invocation. Keying on the history length avoids
+    // rescanning it across shouldConfirmExecute/getConfirmationDetails/execute
+    // without holding a reference to a potentially large history.
     const cacheKey = `${command}\u0000${history.length}`;
 
     if (!this.taintCache || this.taintCache.key !== cacheKey) {
       const untrustedContext = extractUntrustedContext(history);
       const flags = findUntrustedFlags(command, untrustedContext);
-      const roots = this.getEffectiveRoots(command);
+      const { trustRoots, executionRoots } = this.getTaintRoots(command);
       this.taintCache = {
         key: cacheKey,
         flags,
-        roots,
-        executionFlag: hasExecutionFlag(roots, flags),
+        roots: trustRoots,
+        executionRoots,
+        executionFlag: hasExecutionFlag(executionRoots, flags),
       };
     }
 
@@ -460,31 +542,68 @@ export class ShellToolInvocation extends BaseToolInvocation<
   }
 
   /**
-   * Resolves the wrapper command and the command it actually executes (for
-   * example `sudo rg` -> `sudo` + `rg`) so execution flags are evaluated
-   * against the real command.
+   * Separates the roots used for trust/labels from the roots used for the
+   * execution-flag guard.
+   *
+   * Trust roots are the commands a user actually approves: for `sudo rg`, that
+   * is `rg`, not `sudo`. Execution roots include the outer command as well so
+   * wrapper flags can be evaluated, and also include any profiled command found
+   * in the wrapper's arguments. The extra execution roots only make the guard
+   * stricter; they never widen what is trusted.
    */
-  private getEffectiveRoots(command: string): string[] {
-    const roots = new Set(getCommandRoots(command));
+  private getTaintRoots(command: string): {
+    trustRoots: string[];
+    executionRoots: string[];
+  } {
+    const outerRoots = getCommandRoots(command);
     const parsed = parseCommandDetails(command);
+    const trustRoots = new Set<string>();
+    const executionRoots = new Set<string>(outerRoots);
 
-    if (parsed && !parsed.hasError) {
+    if (parsed && !parsed.hasError && parsed.details.length > 0) {
       for (const detail of parsed.details) {
-        const nested = findNestedCommand(detail.name, detail.args ?? []);
+        const detailArgs = tokenizeCommand(detail.text || detail.name).slice(1);
+        const nested = findNestedCommand(detail.name, detailArgs);
+
         if (nested) {
-          roots.add(nested);
+          trustRoots.add(nested);
+          executionRoots.add(nested);
+        } else {
+          trustRoots.add(detail.name);
+        }
+
+        // Defense in depth for wrappers we do not know: if an argument names a
+        // command we have a profile for, include it for the guard only. This
+        // can over-confirm but cannot grant trust.
+        for (const token of [detail.name, ...detailArgs]) {
+          if (getCommandExecutionProfile(token)) {
+            executionRoots.add(token);
+          }
         }
       }
-    }
-
-    if (roots.size === 0) {
-      const fallbackRoot = this.getFallbackRoot(command);
-      if (fallbackRoot) {
-        roots.add(fallbackRoot);
+    } else {
+      for (const token of tokenizeCommand(command)) {
+        if (getCommandExecutionProfile(token)) {
+          executionRoots.add(token);
+        }
+      }
+      for (const root of outerRoots) {
+        trustRoots.add(root);
       }
     }
 
-    return [...roots];
+    if (trustRoots.size === 0) {
+      const fallbackRoot = this.getFallbackRoot(command);
+      if (fallbackRoot) {
+        trustRoots.add(fallbackRoot);
+        executionRoots.add(fallbackRoot);
+      }
+    }
+
+    return {
+      trustRoots: [...trustRoots],
+      executionRoots: [...executionRoots],
+    };
   }
 
   private isTaintTrustEffective(analysis: {
