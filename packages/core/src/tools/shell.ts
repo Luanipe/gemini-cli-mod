@@ -160,6 +160,10 @@ const WRAPPER_FLAGS_WITH_VALUES: Readonly<Record<string, ReadonlySet<string>>> =
       '--type',
       '-U',
       '--other-user',
+      '-R',
+      '--chroot',
+      '-D',
+      '--chdir',
     ]),
     env: new Set(['-u', '--unset', '-C', '--chdir', '-S', '--split-string']),
     time: new Set(['-f', '--format', '-o', '--output']),
@@ -220,6 +224,33 @@ const WRAPPER_POSITIONAL_ARGS_TO_SKIP: Readonly<Record<string, number>> = {
   timeout: 1,
   chroot: 1,
 };
+
+/**
+ * Common commands whose non-flag arguments are data, not a nested command.
+ * They keep the argument scan from inventing an execution risk for things like
+ * `cat node ./src` or `npm test node ./x`.
+ */
+const NON_EXECUTING_COMMANDS = new Set([
+  'cat',
+  'ls',
+  'sed',
+  'awk',
+  'sort',
+  'head',
+  'tail',
+  'cut',
+  'tr',
+  'wc',
+  'uniq',
+  'diff',
+  'stat',
+  'file',
+  'less',
+  'more',
+  'npm',
+  'yarn',
+  'pnpm',
+]);
 
 function getWrapperBaseName(wrapper: string): string {
   const normalized = wrapper.trim().replace(/\\/g, '/');
@@ -562,22 +593,40 @@ export class ShellToolInvocation extends BaseToolInvocation<
 
     if (parsed && !parsed.hasError && parsed.details.length > 0) {
       for (const detail of parsed.details) {
-        const detailArgs = tokenizeCommand(detail.text || detail.name).slice(1);
-        const nested = findNestedCommand(detail.name, detailArgs);
+        const tokens = tokenizeCommand(detail.text || detail.name);
+        let commandIndex = 0;
+        while (
+          commandIndex < tokens.length &&
+          /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[commandIndex])
+        ) {
+          commandIndex++;
+        }
+
+        const commandName = tokens[commandIndex] || detail.name;
+        const detailArgs = tokens.slice(commandIndex + 1);
+        const nested = findNestedCommand(commandName, detailArgs);
+        const profile = getCommandExecutionProfile(commandName);
 
         if (nested) {
           trustRoots.add(nested);
           executionRoots.add(nested);
         } else {
-          trustRoots.add(detail.name);
+          trustRoots.add(commandName);
         }
 
         // Defense in depth for wrappers we do not know: if an argument names a
         // command we have a profile for, include it for the guard only. This
-        // can over-confirm but cannot grant trust.
-        for (const token of [detail.name, ...detailArgs]) {
-          if (getCommandExecutionProfile(token)) {
-            executionRoots.add(token);
+        // can over-confirm but cannot grant trust. Known non-executing commands
+        // are skipped so their data arguments do not look like child commands.
+        if (
+          !nested &&
+          !profile &&
+          !NON_EXECUTING_COMMANDS.has(getWrapperBaseName(commandName))
+        ) {
+          for (const token of [commandName, ...detailArgs]) {
+            if (getCommandExecutionProfile(token)) {
+              executionRoots.add(token);
+            }
           }
         }
       }

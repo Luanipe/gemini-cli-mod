@@ -68,6 +68,10 @@ describe('commandRisk', () => {
     expect(
       hasExecutionFlag(['powershell'], ['-ExecutionPolicy', 'Bypass']),
     ).toBe(false);
+    expect(hasExecutionFlag(['powershell'], ['-enc', 'abc'])).toBe(true);
+    expect(hasExecutionFlag(['powershell'], ['-Command:Get-Process'])).toBe(
+      true,
+    );
   });
 
   it('treats bare script paths as execution for interpreters only', () => {

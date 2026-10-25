@@ -889,6 +889,42 @@ describe('policy.ts', () => {
       expect(mockMessageBus.publish).not.toHaveBeenCalled();
     });
 
+    it('should not trust a command that only appeared as a wrapper argument', async () => {
+      const mockConfig = {
+        getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.YOLO),
+        getDisableAlwaysAllow: vi.fn().mockReturnValue(false),
+        getSessionId: vi.fn().mockReturnValue('test-session-id'),
+      } as unknown as Mocked<Config>;
+      const mockMessageBus = {
+        publish: vi.fn(),
+      } as unknown as Mocked<MessageBus>;
+      const context = {
+        config: mockConfig,
+        messageBus: mockMessageBus,
+      } as unknown as AgentLoopContext;
+      const tool = { name: 'run_shell_command' } as AnyDeclarativeTool;
+      const details: ToolExecuteConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'sudo apt install -y git',
+        rootCommand: 'apt',
+        rootCommands: ['apt'],
+        untrustedFlags: ['-y'],
+        onConfirm: vi.fn(),
+      };
+
+      await updatePolicy(
+        tool,
+        ToolConfirmationOutcome.ProceedAlwaysTaint,
+        details,
+        context,
+        mockMessageBus,
+      );
+
+      expect(areCommandsTrustedForSession(mockConfig, ['apt'])).toBe(true);
+      expect(areCommandsTrustedForSession(mockConfig, ['git'])).toBe(false);
+    });
+
     it('should not record taint trust for build-file-risk confirmations', async () => {
       const mockConfig = {
         getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.YOLO),

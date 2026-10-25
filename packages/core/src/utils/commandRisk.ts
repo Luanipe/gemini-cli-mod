@@ -172,16 +172,28 @@ function matchesExecutionFlag(
   flag: string,
 ): boolean {
   const rawName = getFlagName(flag);
-  const name = profile.caseInsensitiveFlags ? rawName.toLowerCase() : rawName;
+  const lowerName = rawName.toLowerCase();
+  const name = profile.caseInsensitiveFlags
+    ? (lowerName.split(':')[0] ?? lowerName)
+    : rawName;
 
   if (profile.executionFlags.has(name)) {
     return true;
   }
 
-  // Case-insensitive profiles (PowerShell, cmd) are matched by exact flag
-  // name only; their long flags contain letters such as `c` that would
-  // otherwise be mistaken for a POSIX short-flag cluster.
+  // Case-insensitive profiles (PowerShell, cmd) allow prefix abbreviations and
+  // `-Flag:value` syntax. Do not apply the POSIX short-flag cluster rule here:
+  // long flags such as `-NonInteractive` contain letters that would otherwise
+  // be mistaken for clusters.
   if (profile.caseInsensitiveFlags) {
+    for (const exec of profile.executionFlags) {
+      if (name.length >= 3 && exec.startsWith(name)) {
+        return true;
+      }
+      if (name.startsWith(exec)) {
+        return true;
+      }
+    }
     return false;
   }
 

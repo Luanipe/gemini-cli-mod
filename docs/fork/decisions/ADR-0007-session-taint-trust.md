@@ -47,6 +47,13 @@ Add **session-scoped taint trust**, keyed by root command.
 - The new confirmation outcome is `ProceedAlwaysTaint`, which `updatePolicy()`
   handles before the generic policy-update path.
 
+- Unknown wrappers are trusted as the outer command (for example `flock … rg`
+  trusts `flock`), but their arguments still contribute to the execution-flag
+  guard. Known wrappers are resolved to the effective command first.
+- A script path that is itself the command root (`./scripts/deploy.sh`) is
+  always treated as an execution root, so session trust does not suppress its
+  prompt. This is deliberate: the script itself is the code being executed.
+
 ## Consequences
 
 - Repeated benign prompts for the same command disappear after the first

@@ -375,9 +375,9 @@ export const ToolConfirmationMessage: React.FC<
       if (canTrustTaintForSession) {
         const rootCommands = confirmationDetails.rootCommands ?? [];
         const rootLabel =
-          rootCommands.length > 1
-            ? 'these commands'
-            : `"${rootCommands[0] ?? confirmationDetails.rootCommand}"`;
+          rootCommands.length > 0
+            ? rootCommands.map((root) => `"${root}"`).join(', ')
+            : `"${confirmationDetails.rootCommand}"`;
         options.push({
           label: isYolo
             ? `Allow ${rootLabel} for this session (all flags)`
@@ -645,12 +645,12 @@ export const ToolConfirmationMessage: React.FC<
           } else if (taintExecutionFlag && !isYolo) {
             sessionTrustHint =
               '\nExecution flags are not covered by session trust. Approve once to run this command.';
-          } else if (!isTrustedFolder) {
-            sessionTrustHint =
-              '\nSession trust is unavailable in an untrusted folder. Approve once to run this command.';
           } else if (config.getDisableAlwaysAllow()) {
             sessionTrustHint =
               '\nSession trust is disabled by settings. Approve once to run this command.';
+          } else if (!isTrustedFolder) {
+            sessionTrustHint =
+              '\nSession trust is unavailable in an untrusted folder. Approve once to run this command.';
           }
 
           const flagsWarningText =

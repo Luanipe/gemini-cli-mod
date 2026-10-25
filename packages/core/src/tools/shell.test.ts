@@ -1486,6 +1486,73 @@ EOF`;
       expect(execConf.taintExecutionFlag).toBe(true);
     });
 
+    it('should not invent an execution flag from a data argument', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const bus = (shellTool as unknown as { messageBus: MessageBus })
+        .messageBus;
+      const mockBus = getMockMessageBusInstance(
+        bus,
+      ) as unknown as TestableMockMessageBus;
+      mockBus.defaultToolDecision = 'allow';
+
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>rg node ./src</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({ command: 'rg node ./src' });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).toBe(false);
+    });
+
+    it('should resolve prefixed wrappers and their value flags', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>FOO=1 sudo -R /chroot rg --pre /tmp/evil.sh</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({
+        command: 'FOO=1 sudo -R /chroot rg --pre /tmp/evil.sh foo .',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.rootCommands).toEqual(['rg']);
+      expect(execConf.taintExecutionFlag).toBe(true);
+    });
+
     it('should not trust a wrapper-only session key for the wrapped command', async () => {
       vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
         ApprovalMode.DEFAULT,

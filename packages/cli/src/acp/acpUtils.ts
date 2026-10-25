@@ -138,9 +138,9 @@ export function toPermissionOptions(
           if (canTrustTaintForSession) {
             const rootCommands = confirmation.rootCommands ?? [];
             const rootLabel =
-              rootCommands.length > 1
-                ? 'these commands'
-                : `"${rootCommands[0] ?? confirmation.rootCommand}"`;
+              rootCommands.length > 0
+                ? rootCommands.map((root) => `"${root}"`).join(', ')
+                : `"${confirmation.rootCommand}"`;
             options.push({
               optionId: ToolConfirmationOutcome.ProceedAlwaysTaint,
               name: isYolo
