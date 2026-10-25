@@ -229,7 +229,8 @@ const WRAPPER_POSITIONAL_ARGS_TO_SKIP: Readonly<Record<string, number>> = {
 /**
  * Common commands whose non-flag arguments are data, not a nested command.
  * They keep the argument scan from inventing an execution risk for things like
- * `cat node ./src` or `npm test node ./x`.
+ * `cat node ./src`. Package managers are intentionally excluded because they
+ * can execute child commands.
  */
 const NON_EXECUTING_COMMANDS = new Set([
   'cat',

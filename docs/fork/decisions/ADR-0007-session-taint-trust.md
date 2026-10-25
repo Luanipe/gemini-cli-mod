@@ -49,7 +49,9 @@ Add **session-scoped taint trust**, keyed by root command.
 
 - Unknown wrappers are trusted as the outer command (for example `flock … rg`
   trusts `flock`), but their arguments still contribute to the execution-flag
-  guard. Known wrappers are resolved to the effective command first.
+  guard. Known wrappers are resolved to the effective command first. The
+  argument scan is best-effort and can over-confirm; a small list of data
+  commands (`cat`, `ls`, `sed`, …) is excluded to avoid false positives.
 - A script path that is itself the command root (`./scripts/deploy.sh`) is
   always treated as an execution root, so session trust does not suppress its
   prompt. This is deliberate: the script itself is the code being executed.
