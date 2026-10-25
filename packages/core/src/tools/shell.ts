@@ -312,6 +312,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
           (token) =>
             token.length > 0 &&
             !token.includes('=') &&
+            !token.startsWith('-') &&
             !wrapperTokens.has(token.toLowerCase()),
         ) ?? ''
     );
