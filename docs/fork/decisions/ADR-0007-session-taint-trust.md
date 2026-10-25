@@ -26,8 +26,8 @@ Add **session-scoped taint trust**, keyed by root command.
   records the root command in an in-memory `WeakMap` keyed by the `Config`
   instance. No policy rule is published and nothing is written to TOML.
 - Later invocations of the same root command skip the taint confirmation, but
-  the tool output still starts with a short warning listing the flags that were
-  allowed by session trust.
+  the tool output ends with a short warning listing the flags that were allowed
+  by session trust.
 - Trust scope depends on the approval mode:
   - **YOLO** trusts all flags of the trusted command.
   - **default / autoEdit** trust ordinary flags but keep guarding
@@ -37,8 +37,10 @@ Add **session-scoped taint trust**, keyed by root command.
 - Build-file protection is **not** covered by taint trust. A modified build file
   still forces its existing confirmation.
 - `disableAlwaysAllow` disables taint trust as well.
-- The store is cleared by `Config.setSessionId()` and
-  `Config.rotateSessionId()`. This covers `/clear`, resume, and a new process.
+- The store is cleared by `Config.setSessionId()`, which covers `/clear`,
+  resume, and new session IDs. `Config.rotateSessionId()` intentionally
+  preserves trust because it is used for model-fallback retries within the same
+  session. A new process starts with an empty store.
 - The new confirmation outcome is `ProceedAlwaysTaint`, which `updatePolicy()`
   handles before the generic policy-update path.
 
@@ -49,7 +51,8 @@ Add **session-scoped taint trust**, keyed by root command.
 - In YOLO, trusting a command like `git` also trusts its execution flags for the
   session. That is the explicit trade-off of "at least one prompt per session";
   other modes keep the execution-flag guard.
-- The trust store is process-local and cannot leak across sessions.
+- The trust store is process-local. Subagents that share the `Config` instance
+  share the session trust, but it cannot leak across sessions.
 - False positives in the detector still produce a misleading first warning until
   command-aware detection (Y-6) lands. Session trust makes that a one-time cost.
 - The warning remains visible in the command output, so the user is not left

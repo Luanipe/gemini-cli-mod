@@ -888,6 +888,80 @@ describe('policy.ts', () => {
       expect(areCommandsTrustedForSession(mockConfig, ['rg'])).toBe(false);
       expect(mockMessageBus.publish).not.toHaveBeenCalled();
     });
+
+    it('should not record taint trust for build-file-risk confirmations', async () => {
+      const mockConfig = {
+        getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.YOLO),
+        getDisableAlwaysAllow: vi.fn().mockReturnValue(false),
+        getSessionId: vi.fn().mockReturnValue('test-session-id'),
+      } as unknown as Mocked<Config>;
+      const mockMessageBus = {
+        publish: vi.fn(),
+      } as unknown as Mocked<MessageBus>;
+      const context = {
+        config: mockConfig,
+        messageBus: mockMessageBus,
+      } as unknown as AgentLoopContext;
+      const tool = { name: 'run_shell_command' } as AnyDeclarativeTool;
+      const details: ToolExecuteConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'blaze test //foo:all',
+        rootCommand: 'blaze',
+        rootCommands: ['blaze'],
+        untrustedFlags: ['--test_arg=evil'],
+        modifiedBuildFiles: ['/workspace/foo/BUILD'],
+        onConfirm: vi.fn(),
+      };
+
+      await updatePolicy(
+        tool,
+        ToolConfirmationOutcome.ProceedAlwaysTaint,
+        details,
+        context,
+        mockMessageBus,
+      );
+
+      expect(areCommandsTrustedForSession(mockConfig, ['blaze'])).toBe(false);
+      expect(mockMessageBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('should not record taint trust for execution flags outside YOLO', async () => {
+      const mockConfig = {
+        getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.DEFAULT),
+        getDisableAlwaysAllow: vi.fn().mockReturnValue(false),
+        getSessionId: vi.fn().mockReturnValue('test-session-id'),
+      } as unknown as Mocked<Config>;
+      const mockMessageBus = {
+        publish: vi.fn(),
+      } as unknown as Mocked<MessageBus>;
+      const context = {
+        config: mockConfig,
+        messageBus: mockMessageBus,
+      } as unknown as AgentLoopContext;
+      const tool = { name: 'run_shell_command' } as AnyDeclarativeTool;
+      const details: ToolExecuteConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'rg --pre /tmp/evil.sh foo .',
+        rootCommand: 'rg',
+        rootCommands: ['rg'],
+        untrustedFlags: ['--pre', '/tmp/evil.sh'],
+        taintExecutionFlag: true,
+        onConfirm: vi.fn(),
+      };
+
+      await updatePolicy(
+        tool,
+        ToolConfirmationOutcome.ProceedAlwaysTaint,
+        details,
+        context,
+        mockMessageBus,
+      );
+
+      expect(areCommandsTrustedForSession(mockConfig, ['rg'])).toBe(false);
+      expect(mockMessageBus.publish).not.toHaveBeenCalled();
+    });
   });
 
   describe('getPolicyDenialError', () => {

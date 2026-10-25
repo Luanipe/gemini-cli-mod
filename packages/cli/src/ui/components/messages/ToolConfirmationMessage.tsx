@@ -616,6 +616,40 @@ export const ToolConfirmationMessage: React.FC<
           confirmationDetails.untrustedFlags &&
           confirmationDetails.untrustedFlags.length > 0
         ) {
+          const isYolo = config.getApprovalMode() === ApprovalMode.YOLO;
+          const taintTrusted = confirmationDetails.taintTrusted === true;
+          const taintExecutionFlag =
+            confirmationDetails.taintExecutionFlag === true;
+          const hasModifiedBuildFiles =
+            (confirmationDetails.modifiedBuildFiles?.length ?? 0) > 0;
+          const canOfferSessionTrust =
+            isTrustedFolder &&
+            !hasModifiedBuildFiles &&
+            !taintTrusted &&
+            (isYolo || !taintExecutionFlag) &&
+            !config.getDisableAlwaysAllow();
+
+          let sessionTrustHint = '';
+          if (taintTrusted) {
+            sessionTrustHint =
+              taintExecutionFlag && !isYolo
+                ? '\nSession trust is active, but this command uses an execution flag. Approve once to run it.'
+                : '\nSession trust is active for this command until the session ends.';
+          } else if (canOfferSessionTrust) {
+            sessionTrustHint = isYolo
+              ? '\nSelecting "Allow ... for this session" trusts all flags for this command until the session ends. The warning remains visible, and a new session will ask again.'
+              : '\nSelecting "Allow ... for this session" trusts safe flags for this command until the session ends. Execution flags (e.g. --pre, -c, -exec) will still ask. The warning remains visible, and a new session will ask again.';
+          } else if (hasModifiedBuildFiles) {
+            sessionTrustHint =
+              '\nBuild-file protection is not covered by session trust. Approve once to run this command.';
+          } else if (taintExecutionFlag && !isYolo) {
+            sessionTrustHint =
+              '\nExecution flags are not covered by session trust. Approve once to run this command.';
+          } else if (config.getDisableAlwaysAllow()) {
+            sessionTrustHint =
+              '\nSession trust is disabled by settings. Approve once to run this command.';
+          }
+
           const flagsWarningText =
             `⚠️ CRITICAL SECURITY WARNING: Untrusted Command Flags Detected\n` +
             `The following flags/arguments were sourced from external untrusted input (e.g., Buganizer ticket, external document):\n` +
@@ -624,11 +658,7 @@ export const ToolConfirmationMessage: React.FC<
               .join('\n') +
             `\nExecuting commands with flags sourced from untrusted input can execute arbitrary code on your machine.\n` +
             `Carefully verify these flags before approving.` +
-            (confirmationDetails.taintTrusted
-              ? `\nSession trust is active for this command until the session ends.`
-              : config.getApprovalMode() === ApprovalMode.YOLO
-                ? `\nSelecting "Allow ... for this session" trusts all flags for this command until the session ends. The warning remains visible, and a new session will ask again.`
-                : `\nSelecting "Allow ... for this session" trusts safe flags for this command until the session ends. Execution flags (e.g. --pre, -c, -exec) will still ask. The warning remains visible, and a new session will ask again.`);
+            sessionTrustHint;
           securityWarnings = securityWarnings ? (
             <>
               {securityWarnings}

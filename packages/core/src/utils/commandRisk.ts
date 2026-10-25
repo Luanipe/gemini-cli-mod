@@ -20,6 +20,11 @@ export interface CommandExecutionProfile {
    * shells), as opposed to being searched or read (rg, grep, find, git).
    */
   executesBarePathArgs?: boolean;
+  /**
+   * Whether flags are case-insensitive (PowerShell, cmd.exe). Short flags stay
+   * case-sensitive everywhere else (for example `git -C` vs `git -c`).
+   */
+  caseInsensitiveFlags?: boolean;
 }
 
 const EXECUTION_PROFILES: Readonly<Record<string, CommandExecutionProfile>> = {
@@ -62,11 +67,11 @@ const EXECUTION_PROFILES: Readonly<Record<string, CommandExecutionProfile>> = {
     executesBarePathArgs: true,
   },
   python: {
-    executionFlags: new Set(['-c']),
+    executionFlags: new Set(['-c', '-m', '--module']),
     executesBarePathArgs: true,
   },
   python3: {
-    executionFlags: new Set(['-c']),
+    executionFlags: new Set(['-c', '-m', '--module']),
     executesBarePathArgs: true,
   },
   bash: {
@@ -104,21 +109,24 @@ const EXECUTION_PROFILES: Readonly<Record<string, CommandExecutionProfile>> = {
   powershell: {
     executionFlags: new Set(['-c', '-command', '-encodedcommand', '-enc']),
     executesBarePathArgs: true,
+    caseInsensitiveFlags: true,
   },
   pwsh: {
     executionFlags: new Set(['-c', '-command', '-encodedcommand', '-enc']),
     executesBarePathArgs: true,
+    caseInsensitiveFlags: true,
   },
   cmd: {
     executionFlags: new Set(['/c', '/k']),
     executesBarePathArgs: true,
+    caseInsensitiveFlags: true,
   },
   deno: {
-    executionFlags: new Set(['eval', 'run']),
+    executionFlags: new Set(),
     executesBarePathArgs: true,
   },
   bun: {
-    executionFlags: new Set(['-e', '--eval', 'run']),
+    executionFlags: new Set(['-e', '--eval']),
     executesBarePathArgs: true,
   },
   tsx: {
@@ -159,6 +167,50 @@ function looksLikeExecutablePath(flag: string): boolean {
   );
 }
 
+function matchesExecutionFlag(
+  profile: CommandExecutionProfile,
+  flag: string,
+): boolean {
+  const rawName = getFlagName(flag);
+  const name = profile.caseInsensitiveFlags ? rawName.toLowerCase() : rawName;
+
+  if (profile.executionFlags.has(name)) {
+    return true;
+  }
+
+  // Long flags with attached values were already reduced to their name.
+  if (name.startsWith('--')) {
+    return false;
+  }
+
+  if (!name.startsWith('-')) {
+    return false;
+  }
+
+  const shortChars = name.slice(1);
+  for (const exec of profile.executionFlags) {
+    const normalizedExec = profile.caseInsensitiveFlags
+      ? exec.toLowerCase()
+      : exec;
+    if (!normalizedExec.startsWith('-') || normalizedExec.startsWith('--')) {
+      continue;
+    }
+
+    const execChars = normalizedExec.slice(1);
+    if (execChars.length === 1) {
+      // Handles clusters such as `bash -ec` and attached values such as
+      // `git -ccore.pager=evil`.
+      if (shortChars.includes(execChars)) {
+        return true;
+      }
+    } else if (name.startsWith(normalizedExec)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * Returns true when any of the untrusted flags can execute code for one of the
  * given root commands.
@@ -174,11 +226,15 @@ export function hasExecutionFlag(
   for (const root of roots) {
     const profile = getCommandExecutionProfile(root);
     if (!profile) {
+      // A wrapper that resolves to a script/binary path still executes it.
+      if (looksLikeExecutablePath(root)) {
+        return true;
+      }
       continue;
     }
 
     for (const flag of flags) {
-      if (profile.executionFlags.has(getFlagName(flag))) {
+      if (matchesExecutionFlag(profile, flag)) {
         return true;
       }
       if (profile.executesBarePathArgs && looksLikeExecutablePath(flag)) {

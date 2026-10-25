@@ -1888,7 +1888,6 @@ export class Config implements McpContext, AgentLoopContext {
   rotateSessionId(sessionId: string): void {
     this._sessionId = sessionId;
     this.promptId = sessionId;
-    resetTaintTrust(this);
   }
 
   resetNewSessionState(sessionId: string): void {

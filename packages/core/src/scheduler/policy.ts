@@ -133,14 +133,30 @@ export async function updatePolicy(
       return;
     }
 
-    const roots =
-      confirmationDetails?.type === 'exec'
-        ? (
-            confirmationDetails.rootCommands ?? [
-              confirmationDetails.rootCommand,
-            ]
-          ).filter(Boolean)
-        : [];
+    if (
+      confirmationDetails?.type !== 'exec' ||
+      !confirmationDetails.untrustedFlags?.length ||
+      confirmationDetails.modifiedBuildFiles?.length
+    ) {
+      debugLogger.debug(
+        '[PolicyUpdate] Ignoring taint session trust without a valid untrusted-flag exec confirmation.',
+      );
+      return;
+    }
+
+    if (
+      context.config.getApprovalMode() !== ApprovalMode.YOLO &&
+      confirmationDetails.taintExecutionFlag
+    ) {
+      debugLogger.debug(
+        '[PolicyUpdate] Ignoring taint session trust for an execution flag outside YOLO.',
+      );
+      return;
+    }
+
+    const roots = (
+      confirmationDetails.rootCommands ?? [confirmationDetails.rootCommand]
+    ).filter(Boolean);
 
     if (roots.length > 0) {
       trustCommandsForSession(context.config, roots);

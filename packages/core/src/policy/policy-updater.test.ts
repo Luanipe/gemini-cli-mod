@@ -27,6 +27,7 @@ vi.mock('../utils/shell-utils.js', () => ({
   getCommandRoots: vi.fn(),
   stripShellWrapper: vi.fn(),
   hasRedirection: vi.fn(),
+  parseCommandDetails: vi.fn().mockReturnValue(null),
 }));
 interface ParsedPolicy {
   rule?: Array<{

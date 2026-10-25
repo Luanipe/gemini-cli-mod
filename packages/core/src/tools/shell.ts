@@ -54,7 +54,10 @@ import {
   isBuildOrTestCommand,
   getModifiedBuildFiles,
 } from '../utils/untrustedContextTracker.js';
-import { hasExecutionFlag } from '../utils/commandRisk.js';
+import {
+  hasExecutionFlag,
+  getCommandExecutionProfile,
+} from '../utils/commandRisk.js';
 import { areCommandsTrustedForSession } from './taintTrustStore.js';
 import { getShellDefinition } from './definitions/coreTools.js';
 import { resolveToolDeclaration } from './definitions/resolver.js';
@@ -92,17 +95,17 @@ function trimLiveOutputBuffer(output: string): string {
   return output.slice(startIndex);
 }
 
-function prependTaintNotice(
+function appendTaintNotice(
   display: string | AnsiOutput,
   notice: string,
 ): string | AnsiOutput {
   if (typeof display === 'string') {
-    return display ? `${notice}\n\n${display}` : notice;
+    return display ? `${display}\n\n${notice}` : notice;
   }
 
-  const noticeLine: AnsiToken[] = [
+  const noticeLines: AnsiToken[][] = notice.split('\n').map((text) => [
     {
-      text: notice,
+      text,
       bold: false,
       italic: false,
       underline: false,
@@ -112,8 +115,106 @@ function prependTaintNotice(
       fg: '',
       bg: '',
     },
-  ];
-  return [noticeLine, ...display];
+  ]);
+  return [...display, ...noticeLines];
+}
+
+const WRAPPER_COMMANDS = new Set([
+  'sudo',
+  'env',
+  'time',
+  'command',
+  'nohup',
+  'exec',
+  'xargs',
+]);
+
+const WRAPPER_FLAGS_WITH_VALUES: Readonly<Record<string, ReadonlySet<string>>> =
+  {
+    sudo: new Set([
+      '-u',
+      '--user',
+      '-g',
+      '--group',
+      '-p',
+      '--prompt',
+      '-C',
+      '--close-from',
+      '-T',
+      '--command-timeout',
+      '-r',
+      '--role',
+      '-t',
+      '--type',
+      '-U',
+      '--other-user',
+    ]),
+    env: new Set(['-u', '--unset', '-C', '--chdir', '-S', '--split-string']),
+    time: new Set(['-f', '--format', '-o', '--output']),
+    exec: new Set(['-a']),
+    xargs: new Set([
+      '-I',
+      '--replace',
+      '-n',
+      '--max-args',
+      '-P',
+      '--max-procs',
+      '-s',
+      '--max-chars',
+      '-L',
+      '--max-lines',
+      '-E',
+      '--eof',
+      '-d',
+      '--delimiter',
+      '-a',
+      '--arg-file',
+    ]),
+  };
+
+function getWrapperBaseName(wrapper: string): string {
+  const normalized = wrapper.trim().replace(/\\/g, '/');
+  const base = normalized.split('/').filter(Boolean).pop() ?? normalized;
+  return base.toLowerCase().replace(/\.(exe|cmd|bat)$/, '');
+}
+
+function findNestedCommand(
+  wrapper: string,
+  args: readonly string[],
+): string | undefined {
+  const base = getWrapperBaseName(wrapper);
+  if (!WRAPPER_COMMANDS.has(base)) {
+    return undefined;
+  }
+
+  const valueFlags = WRAPPER_FLAGS_WITH_VALUES[base];
+  const candidates: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const token = args[i];
+    if (!token || token.includes('=')) {
+      continue;
+    }
+    if (token === '--') {
+      const next = args[i + 1];
+      if (next) {
+        candidates.push(next);
+      }
+      break;
+    }
+    if (token.startsWith('-')) {
+      if (valueFlags?.has(token) && i + 1 < args.length) {
+        i++;
+      }
+      continue;
+    }
+    candidates.push(token);
+  }
+
+  return (
+    candidates.find((candidate) => getCommandExecutionProfile(candidate)) ??
+    candidates[candidates.length - 1]
+  );
 }
 
 export interface ShellToolParams {
@@ -130,6 +231,13 @@ export class ShellToolInvocation extends BaseToolInvocation<
   ToolResult
 > {
   private proactivePermissionsConfirmed?: SandboxPermissions;
+
+  private taintCache?: {
+    key: string;
+    flags: string[];
+    roots: string[];
+    executionFlag: boolean;
+  };
 
   constructor(
     private readonly context: AgentLoopContext,
@@ -325,23 +433,69 @@ export class ShellToolInvocation extends BaseToolInvocation<
     executionFlag: boolean;
   } {
     const command = stripShellWrapper(this.params.command);
-    const untrustedContext = extractUntrustedContext(this.getHistory());
-    const flags = findUntrustedFlags(command, untrustedContext);
-    const parsedRoots = getCommandRoots(command);
-    const fallbackRoot = this.getFallbackRoot(command);
-    const roots =
-      parsedRoots.length > 0
-        ? [...new Set(parsedRoots)]
-        : fallbackRoot
-          ? [fallbackRoot]
-          : [];
+    const history = this.getHistory();
+    const cacheKey = `${command}\u0000${history.length}`;
+
+    if (!this.taintCache || this.taintCache.key !== cacheKey) {
+      const untrustedContext = extractUntrustedContext(history);
+      const flags = findUntrustedFlags(command, untrustedContext);
+      const roots = this.getEffectiveRoots(command);
+      this.taintCache = {
+        key: cacheKey,
+        flags,
+        roots,
+        executionFlag: hasExecutionFlag(roots, flags),
+      };
+    }
 
     return {
-      flags,
-      roots,
-      trusted: areCommandsTrustedForSession(this.context.config, roots),
-      executionFlag: hasExecutionFlag(roots, flags),
+      flags: this.taintCache.flags,
+      roots: this.taintCache.roots,
+      trusted: areCommandsTrustedForSession(
+        this.context.config,
+        this.taintCache.roots,
+      ),
+      executionFlag: this.taintCache.executionFlag,
     };
+  }
+
+  /**
+   * Resolves the wrapper command and the command it actually executes (for
+   * example `sudo rg` -> `sudo` + `rg`) so execution flags are evaluated
+   * against the real command.
+   */
+  private getEffectiveRoots(command: string): string[] {
+    const roots = new Set(getCommandRoots(command));
+    const parsed = parseCommandDetails(command);
+
+    if (parsed && !parsed.hasError) {
+      for (const detail of parsed.details) {
+        const nested = findNestedCommand(detail.name, detail.args ?? []);
+        if (nested) {
+          roots.add(nested);
+        }
+      }
+    }
+
+    if (roots.size === 0) {
+      const fallbackRoot = this.getFallbackRoot(command);
+      if (fallbackRoot) {
+        roots.add(fallbackRoot);
+      }
+    }
+
+    return [...roots];
+  }
+
+  private isTaintTrustEffective(analysis: {
+    trusted: boolean;
+    executionFlag: boolean;
+  }): boolean {
+    return (
+      analysis.trusted &&
+      (this.context.config.getApprovalMode() === ApprovalMode.YOLO ||
+        !analysis.executionFlag)
+    );
   }
 
   /**
@@ -370,17 +524,8 @@ export class ShellToolInvocation extends BaseToolInvocation<
    * command-specific execution flags.
    */
   hasUntrustedFlagRisk(): boolean {
-    const { flags, trusted, executionFlag } = this.getTaintAnalysis();
-    if (flags.length === 0) {
-      return false;
-    }
-    if (!trusted) {
-      return true;
-    }
-    if (this.context.config.getApprovalMode() === ApprovalMode.YOLO) {
-      return false;
-    }
-    return executionFlag;
+    const analysis = this.getTaintAnalysis();
+    return analysis.flags.length > 0 && !this.isTaintTrustEffective(analysis);
   }
 
   hasTaintedOrBuildFileRisk(): boolean {
@@ -1073,20 +1218,16 @@ export class ShellToolInvocation extends BaseToolInvocation<
 
       const taintAnalysis = this.getTaintAnalysis();
       const taintNoticeApplies =
-        taintAnalysis.trusted &&
         taintAnalysis.flags.length > 0 &&
-        !(
-          this.context.config.getApprovalMode() !== ApprovalMode.YOLO &&
-          taintAnalysis.executionFlag
-        );
+        this.isTaintTrustEffective(taintAnalysis);
       if (taintNoticeApplies) {
         const trustedCommands =
-          taintAnalysis.roots.length > 0
-            ? taintAnalysis.roots.join(', ')
-            : 'shell';
-        returnDisplay = prependTaintNotice(
+          taintAnalysis.roots.length === 1
+            ? `"${taintAnalysis.roots[0]}"`
+            : taintAnalysis.roots.join(', ') || 'shell';
+        returnDisplay = appendTaintNotice(
           returnDisplay,
-          `⚠️ Untrusted flags allowed by session trust for "${trustedCommands}": ${taintAnalysis.flags.join(', ')}\n` +
+          `⚠️ Untrusted flags allowed by session trust for ${trustedCommands}: ${taintAnalysis.flags.join(', ')}\n` +
             'Trust is scoped to this session; a new session will ask again.',
         );
       }

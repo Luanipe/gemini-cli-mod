@@ -90,7 +90,7 @@ describe('toPermissionOptions', () => {
         (option) =>
           option.optionId === ToolConfirmationOutcome.ProceedAlwaysTaint,
       )?.name,
-    ).toBe('Allow command for this session (all flags)');
+    ).toBe('Allow "rg" for this session (all flags)');
   });
 
   it('does not offer session taint trust for execution flags outside YOLO', () => {

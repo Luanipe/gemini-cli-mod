@@ -136,11 +136,16 @@ export function toPermissionOptions(
             confirmation.taintTrusted !== true &&
             (isYolo || confirmation.taintExecutionFlag !== true);
           if (canTrustTaintForSession) {
+            const rootCommands = confirmation.rootCommands ?? [];
+            const rootLabel =
+              rootCommands.length > 1
+                ? 'these commands'
+                : `"${rootCommands[0] ?? confirmation.rootCommand}"`;
             options.push({
               optionId: ToolConfirmationOutcome.ProceedAlwaysTaint,
               name: isYolo
-                ? 'Allow command for this session (all flags)'
-                : 'Allow command for this session',
+                ? `Allow ${rootLabel} for this session (all flags)`
+                : `Allow ${rootLabel} for this session`,
               kind: 'allow_always',
             });
           }

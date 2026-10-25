@@ -1039,6 +1039,10 @@ describe('ToolConfirmationMessage', () => {
       const frame = lastFrame();
       expect(frame).toContain('Allow once');
       expect(frame).not.toContain('Allow "rg" for this session');
+      expect(frame).toContain(
+        'Execution flags are not covered by session trust',
+      );
+      expect(frame).not.toContain('Selecting "Allow ... for this session"');
       unmount();
     });
 

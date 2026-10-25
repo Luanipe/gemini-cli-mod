@@ -40,11 +40,30 @@ describe('commandRisk', () => {
 
   it('treats interpreter inline code as execution', () => {
     expect(hasExecutionFlag(['node'], ['-e', 'code'])).toBe(true);
+    expect(hasExecutionFlag(['node'], ['-pe', 'code'])).toBe(true);
     expect(hasExecutionFlag(['python'], ['-c', 'print(1)'])).toBe(true);
+    expect(hasExecutionFlag(['python'], ['-m', 'json.tool'])).toBe(true);
     expect(hasExecutionFlag(['bash'], ['-c', 'echo hi'])).toBe(true);
+    expect(hasExecutionFlag(['bash'], ['-ec', 'echo hi'])).toBe(true);
     expect(hasExecutionFlag(['perl'], ['-e', 'code'])).toBe(true);
+    expect(hasExecutionFlag(['perl'], ['-ne', 'code'])).toBe(true);
     expect(hasExecutionFlag(['ruby'], ['-e', 'code'])).toBe(true);
     expect(hasExecutionFlag(['php'], ['-r', 'code'])).toBe(true);
+  });
+
+  it('handles attached short-flag values without conflating case', () => {
+    expect(hasExecutionFlag(['git'], ['-ccore.pager=evil', 'status'])).toBe(
+      true,
+    );
+    expect(hasExecutionFlag(['git'], ['-C', 'repo', 'status'])).toBe(false);
+  });
+
+  it('handles case-insensitive flags for PowerShell and cmd', () => {
+    expect(hasExecutionFlag(['powershell'], ['-Command', 'echo hi'])).toBe(
+      true,
+    );
+    expect(hasExecutionFlag(['pwsh'], ['-EncodedCommand', 'abc'])).toBe(true);
+    expect(hasExecutionFlag(['cmd'], ['/C', 'echo hi'])).toBe(true);
   });
 
   it('treats bare script paths as execution for interpreters only', () => {

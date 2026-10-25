@@ -23,6 +23,9 @@ export function getDecisionFromOutcome(
     case ToolConfirmationOutcome.ProceedAlwaysServer:
     case ToolConfirmationOutcome.ProceedAlwaysTool:
     case ToolConfirmationOutcome.ProceedAlwaysTaint:
+      // The first (explicitly confirmed) invocation counts as an auto-accept;
+      // later invocations may still prompt outside YOLO when they use an
+      // execution flag.
       return ToolCallDecision.AUTO_ACCEPT;
     case ToolConfirmationOutcome.ModifyWithEditor:
       return ToolCallDecision.MODIFY;
