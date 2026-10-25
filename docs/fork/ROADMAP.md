@@ -53,8 +53,10 @@ A task is `DONE` only when all of the following hold:
 ## Components
 
 **Current focus:** YOLO / acceptances — Y-5 (session-scoped taint trust) is in
-REVIEW; Y-6 (command-aware untrusted flag detection) is next. The remaining AH
-items (AH-6/7/8) are optional backlog.
+REVIEW; Y-6 (command-aware untrusted flag detection) is next. After that, the
+YOLO profile work runs in order: Y-4 foundation → Y-7 prompt policy → Y-2 safety
+posture → Y-3 adaptive classifier. The remaining AH items (AH-6/7/8) are
+optional backlog.
 
 Status is updated as work lands. "Evidence" points to the commit/PR that
 delivered the item. Per the legend, `DONE` means **merged**; implemented and
@@ -101,12 +103,20 @@ Improve the agent loop, tool orchestration, and robustness.
 
 Improve the approval model and permissive modes.
 
-| ID  | Item                                                           | Status | Issue | Branch                          | PR  | Evidence    |
-| --- | -------------------------------------------------------------- | ------ | ----- | ------------------------------- | --- | ----------- |
-| Y-2 | Two danger tiers (`bypass` still honors safety checks; `full`) | TODO   | #8    |                                 |     |             |
-| Y-3 | LLM auto-mode classifier with circuit breaker + denial limits  | TODO   | #9    |                                 |     |             |
-| Y-5 | Session-scoped taint trust for untrusted command flags         | REVIEW | #30   | `feat/yolo-taint-session-trust` | #32 | `2074b81d3` |
-| Y-6 | Command-aware untrusted flag detection                         | TODO   | #31   |                                 |     |             |
+| ID  | Item                                                       | Status  | Issue | Branch                          | PR  | Evidence                                    |
+| --- | ---------------------------------------------------------- | ------- | ----- | ------------------------------- | --- | ------------------------------------------- |
+| Y-1 | `dontAsk` mode (ask → deny, for CI/headless)               | DROPPED | #7    |                                 |     | Superseded by Y-7 and the YOLO profile work |
+| Y-2 | YOLO safety posture (`guarded` / `unrestricted`)           | TODO    | #8    |                                 |     | Depends on Y-4                              |
+| Y-3 | YOLO adaptive classifier (allowlist + circuit breaker)     | TODO    | #9    |                                 |     | Depends on Y-4, Y-7, Y-2                    |
+| Y-4 | YOLO profile foundation (`decision`, `safety`, `onPrompt`) | TODO    | #33   |                                 |     | Blocks Y-2, Y-3, Y-7                        |
+| Y-5 | Session-scoped taint trust for untrusted command flags     | REVIEW  | #30   | `feat/yolo-taint-session-trust` | #32 | `2074b81d3`                                 |
+| Y-6 | Command-aware untrusted flag detection                     | TODO    | #31   |                                 |     | Next after Y-5                              |
+| Y-7 | Prompt policy (`onPrompt: ask\|deny`) independent of mode  | TODO    | #34   |                                 |     | Depends on Y-4; supersedes #7               |
+
+Execution order after Y-5: **Y-6** (accuracy) → **Y-4** (profile plumbing) →
+**Y-7** (no-prompt policy) → **Y-2** (safety posture) → **Y-3** (classifier). No
+task adds a new `ApprovalMode` value; YOLO remains a single mode whose behavior
+is tuned by the profile.
 
 ### Few-shot prompting
 
