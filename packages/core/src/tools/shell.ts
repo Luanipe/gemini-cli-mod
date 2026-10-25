@@ -44,6 +44,7 @@ import {
   detectCommandSubstitution,
   normalizeCommand,
   escapeShellArg,
+  REDIRECTION_NAMES,
 } from '../utils/shell-utils.js';
 import { SHELL_TOOL_NAME } from './tool-names.js';
 import { PARAM_ADDITIONAL_PERMISSIONS } from './definitions/base-declarations.js';
@@ -247,9 +248,6 @@ const NON_EXECUTING_COMMANDS = new Set([
   'file',
   'less',
   'more',
-  'npm',
-  'yarn',
-  'pnpm',
 ]);
 
 function getWrapperBaseName(wrapper: string): string {
@@ -593,6 +591,10 @@ export class ShellToolInvocation extends BaseToolInvocation<
 
     if (parsed && !parsed.hasError && parsed.details.length > 0) {
       for (const detail of parsed.details) {
+        if (REDIRECTION_NAMES.has(detail.name)) {
+          continue;
+        }
+
         const tokens = tokenizeCommand(detail.text || detail.name);
         let commandIndex = 0;
         while (

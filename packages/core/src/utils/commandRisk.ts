@@ -190,7 +190,10 @@ function matchesExecutionFlag(
       if (name.length >= 3 && exec.startsWith(name)) {
         return true;
       }
-      if (name.startsWith(exec)) {
+      // Prefix matching is only safe for multi-character flag names and for
+      // cmd-style `/c...` values. A single-character `-c` must stay exact, or
+      // `-ConfigurationName`/`-CustomPipeName` would match.
+      if ((exec.length > 2 || exec.startsWith('/')) && name.startsWith(exec)) {
         return true;
       }
     }

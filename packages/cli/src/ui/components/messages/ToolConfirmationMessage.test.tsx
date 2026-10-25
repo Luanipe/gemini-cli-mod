@@ -1046,6 +1046,40 @@ describe('ToolConfirmationMessage', () => {
       unmount();
     });
 
+    it('should explain when session trust is disabled by settings', async () => {
+      const confirmationDetails: SerializableConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'rg --type ts "foo" ./packages',
+        rootCommand: 'rg',
+        rootCommands: ['rg'],
+        untrustedFlags: ['--type', './packages'],
+      };
+      const disabledConfig = {
+        isTrustedFolder: () => true,
+        getIdeMode: () => false,
+        getDisableAlwaysAllow: () => true,
+        getApprovalMode: () => 'default',
+      } as unknown as Config;
+
+      const { lastFrame, unmount } = await renderWithProviders(
+        <ToolConfirmationMessage
+          callId="test-untrusted-exec-disabled"
+          confirmationDetails={confirmationDetails}
+          config={disabledConfig}
+          getPreferredEditor={vi.fn()}
+          availableTerminalHeight={30}
+          terminalWidth={80}
+          toolName="run_shell_command"
+        />,
+      );
+
+      const frame = lastFrame();
+      expect(frame).toContain('Session trust is disabled by settings');
+      expect(frame).not.toContain('untrusted folder');
+      unmount();
+    });
+
     it('should not offer session taint trust when the command is already trusted', async () => {
       const confirmationDetails: SerializableConfirmationDetails = {
         type: 'exec',

@@ -72,6 +72,12 @@ describe('commandRisk', () => {
     expect(hasExecutionFlag(['powershell'], ['-Command:Get-Process'])).toBe(
       true,
     );
+    expect(hasExecutionFlag(['powershell'], ['-ConfigurationName', 'x'])).toBe(
+      false,
+    );
+    expect(hasExecutionFlag(['powershell'], ['-CustomPipeName', 'x'])).toBe(
+      false,
+    );
   });
 
   it('treats bare script paths as execution for interpreters only', () => {

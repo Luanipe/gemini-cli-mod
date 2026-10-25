@@ -1553,6 +1553,101 @@ EOF`;
       expect(execConf.taintExecutionFlag).toBe(true);
     });
 
+    it('should not treat redirection targets as trust roots', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>rg --type ts ./packages</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+
+      const invocation = shellTool.build({
+        command: 'rg --type ts "foo" ./packages > /tmp/out.txt',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.rootCommands).toEqual(['rg']);
+    });
+
+    it('should not treat heredoc delimiters as trust roots', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>cat > /tmp/x <<EOF\nrg --pre /tmp/evil.sh\nEOF</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+
+      const invocation = shellTool.build({
+        command: 'cat > /tmp/x <<EOF\nrg --pre /tmp/evil.sh\nEOF',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.rootCommands).toEqual(['cat']);
+    });
+
+    it('should keep guarding child commands under package managers', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>npm exec -- bash -c "echo hi"</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['npm']);
+
+      const invocation = shellTool.build({
+        command: 'npm exec -- bash -c "echo hi"',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.rootCommands).toEqual(['npm']);
+      expect(execConf.taintExecutionFlag).toBe(true);
+    });
+
     it('should not trust a wrapper-only session key for the wrapped command', async () => {
       vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
         ApprovalMode.DEFAULT,
