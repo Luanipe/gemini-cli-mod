@@ -109,7 +109,7 @@ Improve the approval model and permissive modes.
 | Y-2 | YOLO safety posture (`guarded` / `unrestricted`)           | TODO    | #8    |                                 |     | Depends on Y-4                              |
 | Y-3 | YOLO adaptive classifier (allowlist + circuit breaker)     | TODO    | #9    |                                 |     | Depends on Y-4, Y-7, Y-2                    |
 | Y-4 | YOLO profile foundation (`decision`, `safety`, `onPrompt`) | TODO    | #33   |                                 |     | Blocks Y-2, Y-3, Y-7                        |
-| Y-5 | Session-scoped taint trust for untrusted command flags     | REVIEW  | #30   | `feat/yolo-taint-session-trust` | #32 | `c19df5357`                                 |
+| Y-5 | Session-scoped taint trust for untrusted command flags     | REVIEW  | #30   | `feat/yolo-taint-session-trust` | #32 | `484ee473e`                                 |
 | Y-6 | Command-aware untrusted flag detection                     | TODO    | #31   |                                 |     | Next after Y-5                              |
 | Y-7 | Prompt policy (`onPrompt: ask\|deny`) independent of mode  | TODO    | #34   |                                 |     | Depends on Y-4; supersedes #7               |
 
