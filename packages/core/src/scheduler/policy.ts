@@ -26,6 +26,8 @@ import {
 } from '../tools/tools.js';
 import { buildFilePathArgsPattern } from '../policy/utils.js';
 import { makeRelative } from '../utils/paths.js';
+import { debugLogger } from '../utils/debugLogger.js';
+import { trustCommandsForSession } from '../tools/taintTrustStore.js';
 import { DiscoveredMCPTool, formatMcpToolName } from '../tools/mcp-tool.js';
 import { EDIT_TOOL_NAMES } from '../tools/tool-names.js';
 import type { ValidatingToolCall } from './types.js';
@@ -120,6 +122,34 @@ export async function updatePolicy(
   toolInvocation?: AnyToolInvocation,
 ): Promise<void> {
   const currentMode = context.config.getApprovalMode();
+
+  // Untrusted-flag trust is session-scoped and never persisted. Handle it
+  // before the generic policy-update path so no TOML rule is written.
+  if (outcome === ToolConfirmationOutcome.ProceedAlwaysTaint) {
+    if (context.config.getDisableAlwaysAllow()) {
+      debugLogger.debug(
+        '[PolicyUpdate] Ignoring taint session trust because always-allow is disabled.',
+      );
+      return;
+    }
+
+    const roots =
+      confirmationDetails?.type === 'exec'
+        ? (
+            confirmationDetails.rootCommands ?? [
+              confirmationDetails.rootCommand,
+            ]
+          ).filter(Boolean)
+        : [];
+
+    if (roots.length > 0) {
+      trustCommandsForSession(context.config, roots);
+      debugLogger.debug(
+        `[PolicyUpdate] Session taint trust for: ${roots.join(', ')}`,
+      );
+    }
+    return;
+  }
 
   // Mode Transitions (AUTO_EDIT)
   if (isAutoEditTransition(tool, outcome)) {

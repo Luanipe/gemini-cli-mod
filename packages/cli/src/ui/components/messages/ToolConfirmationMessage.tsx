@@ -360,7 +360,36 @@ export const ToolConfirmationMessage: React.FC<
       const hasModifiedBuildFiles =
         confirmationDetails.modifiedBuildFiles &&
         confirmationDetails.modifiedBuildFiles.length > 0;
-      if (isTrustedFolder && !hasUntrustedFlags && !hasModifiedBuildFiles) {
+      const isYolo = config.getApprovalMode() === ApprovalMode.YOLO;
+      const taintTrusted = confirmationDetails.taintTrusted === true;
+      const taintExecutionFlag =
+        confirmationDetails.taintExecutionFlag === true;
+      const canTrustTaintForSession =
+        isTrustedFolder &&
+        Boolean(hasUntrustedFlags) &&
+        !hasModifiedBuildFiles &&
+        !taintTrusted &&
+        (isYolo || !taintExecutionFlag) &&
+        !config.getDisableAlwaysAllow();
+
+      if (canTrustTaintForSession) {
+        const rootCommands = confirmationDetails.rootCommands ?? [];
+        const rootLabel =
+          rootCommands.length > 1
+            ? 'these commands'
+            : `"${rootCommands[0] ?? confirmationDetails.rootCommand}"`;
+        options.push({
+          label: isYolo
+            ? `Allow ${rootLabel} for this session (all flags)`
+            : `Allow ${rootLabel} for this session`,
+          value: ToolConfirmationOutcome.ProceedAlwaysTaint,
+          key: 'Allow command for this session',
+        });
+      } else if (
+        isTrustedFolder &&
+        !hasUntrustedFlags &&
+        !hasModifiedBuildFiles
+      ) {
         options.push({
           label: `Allow for this session`,
           value: ToolConfirmationOutcome.ProceedAlways,
@@ -594,7 +623,12 @@ export const ToolConfirmationMessage: React.FC<
               .map((f) => `  • ${f}`)
               .join('\n') +
             `\nExecuting commands with flags sourced from untrusted input can execute arbitrary code on your machine.\n` +
-            `Carefully verify these flags before approving.`;
+            `Carefully verify these flags before approving.` +
+            (confirmationDetails.taintTrusted
+              ? `\nSession trust is active for this command until the session ends.`
+              : config.getApprovalMode() === ApprovalMode.YOLO
+                ? `\nSelecting "Allow ... for this session" trusts all flags for this command until the session ends. The warning remains visible, and a new session will ask again.`
+                : `\nSelecting "Allow ... for this session" trusts safe flags for this command until the session ends. Execution flags (e.g. --pre, -c, -exec) will still ask. The warning remains visible, and a new session will ask again.`);
           securityWarnings = securityWarnings ? (
             <>
               {securityWarnings}

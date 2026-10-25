@@ -1045,6 +1045,17 @@ export interface ToolExecuteConfirmationDetails {
   commands?: string[];
   untrustedFlags?: string[];
   modifiedBuildFiles?: string[];
+  /**
+   * True when the untrusted flags for this command have already been trusted
+   * for the remainder of the session.
+   */
+  taintTrusted?: boolean;
+  /**
+   * True when the untrusted flags include a command-specific execution flag
+   * (for example `rg --pre` or `git -c`). Outside YOLO this keeps prompting
+   * even after the command itself is trusted for the session.
+   */
+  taintExecutionFlag?: boolean;
 }
 
 export interface ToolMcpConfirmationDetails {
@@ -1109,6 +1120,11 @@ export enum ToolConfirmationOutcome {
   ProceedAlwaysAndSave = 'proceed_always_and_save',
   ProceedAlwaysServer = 'proceed_always_server',
   ProceedAlwaysTool = 'proceed_always_tool',
+  /**
+   * Trusts untrusted-flag warnings for the command's root commands for the
+   * remainder of the session. Never persisted to policy TOML.
+   */
+  ProceedAlwaysTaint = 'proceed_always_taint',
   ModifyWithEditor = 'modify_with_editor',
   Cancel = 'cancel',
 }

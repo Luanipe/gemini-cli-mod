@@ -33,7 +33,7 @@ import {
   type ShellOutputEvent,
 } from '../services/shellExecutionService.js';
 import { formatBytes } from '../utils/formatters.js';
-import type { AnsiOutput } from '../utils/terminalSerializer.js';
+import type { AnsiOutput, AnsiToken } from '../utils/terminalSerializer.js';
 import {
   getCommandRoots,
   initializeShellParsers,
@@ -54,6 +54,8 @@ import {
   isBuildOrTestCommand,
   getModifiedBuildFiles,
 } from '../utils/untrustedContextTracker.js';
+import { hasExecutionFlag } from '../utils/commandRisk.js';
+import { areCommandsTrustedForSession } from './taintTrustStore.js';
 import { getShellDefinition } from './definitions/coreTools.js';
 import { resolveToolDeclaration } from './definitions/resolver.js';
 import type { AgentLoopContext } from '../config/agent-loop-context.js';
@@ -88,6 +90,30 @@ function trimLiveOutputBuffer(output: string): string {
     startIndex += 1;
   }
   return output.slice(startIndex);
+}
+
+function prependTaintNotice(
+  display: string | AnsiOutput,
+  notice: string,
+): string | AnsiOutput {
+  if (typeof display === 'string') {
+    return display ? `${notice}\n\n${display}` : notice;
+  }
+
+  const noticeLine: AnsiToken[] = [
+    {
+      text: notice,
+      bold: false,
+      italic: false,
+      underline: false,
+      dim: false,
+      inverse: false,
+      isUninitialized: false,
+      fg: '',
+      bg: '',
+    },
+  ];
+  return [noticeLine, ...display];
 }
 
 export interface ShellToolParams {
@@ -269,17 +295,95 @@ export class ShellToolInvocation extends BaseToolInvocation<
     return this.getContextualDetails().trim();
   }
 
-  hasTaintedOrBuildFileRisk(): boolean {
-    const command = stripShellWrapper(this.params.command);
-    const history = this.getHistory();
-    const untrustedContext = extractUntrustedContext(history);
-    const untrustedFlags = findUntrustedFlags(command, untrustedContext);
-    const modifiedBuildFiles = getModifiedBuildFiles(this.context.config);
-    const isBuildCmd = isBuildOrTestCommand(command);
-
+  private getFallbackRoot(command: string): string {
+    const wrapperTokens = new Set([
+      'sudo',
+      'env',
+      'time',
+      'command',
+      'nohup',
+      'exec',
+    ]);
     return (
-      untrustedFlags.length > 0 || (isBuildCmd && modifiedBuildFiles.length > 0)
+      command
+        .trim()
+        .split(/\s+/)
+        .find(
+          (token) =>
+            token.length > 0 &&
+            !token.includes('=') &&
+            !wrapperTokens.has(token.toLowerCase()),
+        ) ?? ''
     );
+  }
+
+  private getTaintAnalysis(): {
+    flags: string[];
+    roots: string[];
+    trusted: boolean;
+    executionFlag: boolean;
+  } {
+    const command = stripShellWrapper(this.params.command);
+    const untrustedContext = extractUntrustedContext(this.getHistory());
+    const flags = findUntrustedFlags(command, untrustedContext);
+    const parsedRoots = getCommandRoots(command);
+    const fallbackRoot = this.getFallbackRoot(command);
+    const roots =
+      parsedRoots.length > 0
+        ? [...new Set(parsedRoots)]
+        : fallbackRoot
+          ? [fallbackRoot]
+          : [];
+
+    return {
+      flags,
+      roots,
+      trusted: areCommandsTrustedForSession(this.context.config, roots),
+      executionFlag: hasExecutionFlag(roots, flags),
+    };
+  }
+
+  /**
+   * Whether this command has any arguments sourced from untrusted context,
+   * regardless of session trust. Used to keep persistent approvals disabled.
+   */
+  hasUntrustedFlags(): boolean {
+    return this.getTaintAnalysis().flags.length > 0;
+  }
+
+  /**
+   * Whether a build/test command runs after a build file was modified earlier
+   * in this session.
+   */
+  hasModifiedBuildFileRisk(): boolean {
+    const command = stripShellWrapper(this.params.command);
+    return (
+      isBuildOrTestCommand(command) &&
+      getModifiedBuildFiles(this.context.config).length > 0
+    );
+  }
+
+  /**
+   * Whether untrusted flags should still block this invocation after applying
+   * session trust. YOLO trusts all flags; other modes keep guarding
+   * command-specific execution flags.
+   */
+  hasUntrustedFlagRisk(): boolean {
+    const { flags, trusted, executionFlag } = this.getTaintAnalysis();
+    if (flags.length === 0) {
+      return false;
+    }
+    if (!trusted) {
+      return true;
+    }
+    if (this.context.config.getApprovalMode() === ApprovalMode.YOLO) {
+      return false;
+    }
+    return executionFlag;
+  }
+
+  hasTaintedOrBuildFileRisk(): boolean {
+    return this.hasModifiedBuildFileRisk() || this.hasUntrustedFlagRisk();
   }
 
   override getPolicyUpdateOptions(
@@ -290,7 +394,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
       outcome === ToolConfirmationOutcome.ProceedAlways
     ) {
       const command = stripShellWrapper(this.params.command);
-      if (this.hasTaintedOrBuildFileRisk()) {
+      if (this.hasUntrustedFlags() || this.hasModifiedBuildFileRisk()) {
         return undefined;
       }
       const rootCommands = [...new Set(getCommandRoots(command))];
@@ -452,12 +556,14 @@ export class ShellToolInvocation extends BaseToolInvocation<
         .join(', ');
     }
 
-    const rootCommands = [...new Set(getCommandRoots(command))];
+    const {
+      flags: untrustedFlags,
+      roots: rootCommands,
+      trusted: taintTrusted,
+      executionFlag: taintExecutionFlag,
+    } = this.getTaintAnalysis();
     const rootCommand = rootCommands[0] || 'shell';
 
-    const history = this.getHistory();
-    const untrustedContext = extractUntrustedContext(history);
-    const untrustedFlags = findUntrustedFlags(command, untrustedContext);
     const modifiedBuildFiles = getModifiedBuildFiles(this.context.config);
     const isBuildCmd = isBuildOrTestCommand(command);
 
@@ -507,6 +613,9 @@ export class ShellToolInvocation extends BaseToolInvocation<
       rootCommand: rootCommandDisplay,
       rootCommands,
       untrustedFlags: untrustedFlags.length > 0 ? untrustedFlags : undefined,
+      taintTrusted: untrustedFlags.length > 0 ? taintTrusted : undefined,
+      taintExecutionFlag:
+        untrustedFlags.length > 0 ? taintExecutionFlag : undefined,
       modifiedBuildFiles:
         isBuildCmd && modifiedBuildFiles.length > 0
           ? modifiedBuildFiles
@@ -959,6 +1068,26 @@ export class ShellToolInvocation extends BaseToolInvocation<
           // If output is empty and command succeeded (code 0, no error/signal/abort),
           // returnDisplay will remain empty, which is fine.
         }
+      }
+
+      const taintAnalysis = this.getTaintAnalysis();
+      const taintNoticeApplies =
+        taintAnalysis.trusted &&
+        taintAnalysis.flags.length > 0 &&
+        !(
+          this.context.config.getApprovalMode() !== ApprovalMode.YOLO &&
+          taintAnalysis.executionFlag
+        );
+      if (taintNoticeApplies) {
+        const trustedCommands =
+          taintAnalysis.roots.length > 0
+            ? taintAnalysis.roots.join(', ')
+            : 'shell';
+        returnDisplay = prependTaintNotice(
+          returnDisplay,
+          `⚠️ Untrusted flags allowed by session trust for "${trustedCommands}": ${taintAnalysis.flags.join(', ')}\n` +
+            'Trust is scoped to this session; a new session will ask again.',
+        );
       }
 
       // Heuristic Sandbox Denial Detection

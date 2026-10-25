@@ -120,6 +120,8 @@ export type SerializableConfirmationDetails =
       commands?: string[];
       untrustedFlags?: string[];
       modifiedBuildFiles?: string[];
+      taintTrusted?: boolean;
+      taintExecutionFlag?: boolean;
     }
   | {
       type: 'mcp';

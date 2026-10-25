@@ -45,6 +45,7 @@ import { GlobTool } from '../tools/glob.js';
 import { ActivateSkillTool } from '../tools/activate-skill.js';
 import { EditTool } from '../tools/edit.js';
 import { ShellTool } from '../tools/shell.js';
+import { resetTaintTrust } from '../tools/taintTrustStore.js';
 import { WriteFileTool } from '../tools/write-file.js';
 import { WebFetchTool } from '../tools/web-fetch.js';
 import {
@@ -1872,6 +1873,7 @@ export class Config implements McpContext, AgentLoopContext {
     this.modelQuotas.clear();
     this.lastRetrievedQuota = undefined;
     this.lastQuotaFetchTime = 0;
+    resetTaintTrust(this);
 
     // Force an event emission to clear the UI display
     coreEvents.emitQuotaChanged(undefined, undefined, undefined);
@@ -1886,6 +1888,7 @@ export class Config implements McpContext, AgentLoopContext {
   rotateSessionId(sessionId: string): void {
     this._sessionId = sessionId;
     this.promptId = sessionId;
+    resetTaintTrust(this);
   }
 
   resetNewSessionState(sessionId: string): void {

@@ -22,6 +22,7 @@ export function getDecisionFromOutcome(
     case ToolConfirmationOutcome.ProceedAlways:
     case ToolConfirmationOutcome.ProceedAlwaysServer:
     case ToolConfirmationOutcome.ProceedAlwaysTool:
+    case ToolConfirmationOutcome.ProceedAlwaysTaint:
       return ToolCallDecision.AUTO_ACCEPT;
     case ToolConfirmationOutcome.ModifyWithEditor:
       return ToolCallDecision.MODIFY;
