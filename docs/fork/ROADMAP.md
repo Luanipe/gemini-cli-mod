@@ -101,13 +101,12 @@ Improve the agent loop, tool orchestration, and robustness.
 
 Improve the approval model and permissive modes.
 
-| ID  | Item                                                           | Status  | Issue | Branch                          | PR  | Evidence                                        |
-| --- | -------------------------------------------------------------- | ------- | ----- | ------------------------------- | --- | ----------------------------------------------- |
-| Y-1 | `dontAsk` mode (ask → deny, for CI/headless)                   | DROPPED | #7    |                                 |     | Superseded by Y-5/Y-6 and the YOLO profile work |
-| Y-2 | Two danger tiers (`bypass` still honors safety checks; `full`) | TODO    | #8    |                                 |     |                                                 |
-| Y-3 | LLM auto-mode classifier with circuit breaker + denial limits  | TODO    | #9    |                                 |     |                                                 |
-| Y-5 | Session-scoped taint trust for untrusted command flags         | REVIEW  | #30   | `feat/yolo-taint-session-trust` | #32 | `2074b81d3`                                     |
-| Y-6 | Command-aware untrusted flag detection                         | TODO    | #31   |                                 |     |                                                 |
+| ID  | Item                                                           | Status | Issue | Branch                          | PR  | Evidence    |
+| --- | -------------------------------------------------------------- | ------ | ----- | ------------------------------- | --- | ----------- |
+| Y-2 | Two danger tiers (`bypass` still honors safety checks; `full`) | TODO   | #8    |                                 |     |             |
+| Y-3 | LLM auto-mode classifier with circuit breaker + denial limits  | TODO   | #9    |                                 |     |             |
+| Y-5 | Session-scoped taint trust for untrusted command flags         | REVIEW | #30   | `feat/yolo-taint-session-trust` | #32 | `2074b81d3` |
+| Y-6 | Command-aware untrusted flag detection                         | TODO   | #31   |                                 |     |             |
 
 ### Few-shot prompting
 
