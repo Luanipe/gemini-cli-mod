@@ -150,3 +150,7 @@ Focus on the areas this fork touches; report severity
 4. **Secrets**: nothing sensitive committed, logged, or written in plain text.
 5. **New tool surfaces** (for example the read-before-edit guard): fail closed,
    and do not leak file contents or paths beyond what the model already had.
+6. **Untrusted-flag trust**: session-scoped and in-memory only, per root
+   command; never written to TOML; build-file protection is never covered;
+   `disableAlwaysAllow` disables it; non-YOLO modes keep guarding execution
+   flags (`rg --pre`, `git -c`, `find -exec`, and similar).
