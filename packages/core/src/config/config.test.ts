@@ -50,6 +50,10 @@ import {
 import { GeminiClient } from '../core/client.js';
 import { GitService } from '../services/gitService.js';
 import { ShellTool } from '../tools/shell.js';
+import {
+  areCommandsTrustedForSession,
+  trustCommandsForSession,
+} from '../tools/taintTrustStore.js';
 import { AgentTool } from '../agents/agent-tool.js';
 import { ReadFileTool } from '../tools/read-file.js';
 import { GrepTool } from '../tools/grep.js';
@@ -900,6 +904,24 @@ describe('Server Config (config.ts)', () => {
       // eslint-disable-next-line @typescript-eslint/no-misused-spread
       const spreadContextRotated = { ...config };
       expect(spreadContextRotated.promptId).toBe('rotated-session-id-456');
+    });
+
+    it('resets taint trust on a new session but preserves it on rotation', async () => {
+      const config = new Config({
+        ...baseParams,
+        checkpointing: false,
+      });
+      await config.initialize();
+
+      trustCommandsForSession(config, ['rg']);
+      expect(areCommandsTrustedForSession(config, ['rg'])).toBe(true);
+
+      config.setSessionId('new-session-id-123');
+      expect(areCommandsTrustedForSession(config, ['rg'])).toBe(false);
+
+      trustCommandsForSession(config, ['rg']);
+      config.rotateSessionId('rotated-session-id-456');
+      expect(areCommandsTrustedForSession(config, ['rg'])).toBe(true);
     });
   });
 

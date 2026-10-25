@@ -40,6 +40,7 @@ import { DiscoveredMCPTool } from '../tools/mcp-tool.js';
 import { Scheduler } from './scheduler.js';
 import { ToolErrorType } from '../tools/tool-error.js';
 import type { ToolRegistry } from '../tools/tool-registry.js';
+import { areCommandsTrustedForSession } from '../tools/taintTrustStore.js';
 
 describe('policy.ts', () => {
   describe('checkPolicy', () => {
@@ -812,6 +813,190 @@ describe('policy.ts', () => {
           persist: false,
         }),
       );
+    });
+
+    it('should record session taint trust without publishing a policy update', async () => {
+      const mockConfig = {
+        getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.YOLO),
+        setApprovalMode: vi.fn(),
+        getDisableAlwaysAllow: vi.fn().mockReturnValue(false),
+        getSessionId: vi.fn().mockReturnValue('test-session-id'),
+      } as unknown as Mocked<Config>;
+      const mockMessageBus = {
+        publish: vi.fn(),
+      } as unknown as Mocked<MessageBus>;
+      const context = {
+        config: mockConfig,
+        messageBus: mockMessageBus,
+      } as unknown as AgentLoopContext;
+      const tool = { name: 'run_shell_command' } as AnyDeclarativeTool;
+      const details: ToolExecuteConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'rg --type ts "foo" ./packages',
+        rootCommand: 'rg',
+        rootCommands: ['rg'],
+        untrustedFlags: ['--type', './packages'],
+        onConfirm: vi.fn(),
+      };
+
+      await updatePolicy(
+        tool,
+        ToolConfirmationOutcome.ProceedAlwaysTaint,
+        details,
+        context,
+        mockMessageBus,
+      );
+
+      expect(areCommandsTrustedForSession(mockConfig, ['rg'])).toBe(true);
+      expect(mockMessageBus.publish).not.toHaveBeenCalled();
+      expect(mockConfig.setApprovalMode).not.toHaveBeenCalled();
+    });
+
+    it('should not record taint trust when always-allow is disabled', async () => {
+      const mockConfig = {
+        getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.YOLO),
+        getDisableAlwaysAllow: vi.fn().mockReturnValue(true),
+        getSessionId: vi.fn().mockReturnValue('test-session-id'),
+      } as unknown as Mocked<Config>;
+      const mockMessageBus = {
+        publish: vi.fn(),
+      } as unknown as Mocked<MessageBus>;
+      const context = {
+        config: mockConfig,
+        messageBus: mockMessageBus,
+      } as unknown as AgentLoopContext;
+      const tool = { name: 'run_shell_command' } as AnyDeclarativeTool;
+      const details: ToolExecuteConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'rg --type ts "foo" ./packages',
+        rootCommand: 'rg',
+        rootCommands: ['rg'],
+        untrustedFlags: ['--type'],
+        onConfirm: vi.fn(),
+      };
+
+      await updatePolicy(
+        tool,
+        ToolConfirmationOutcome.ProceedAlwaysTaint,
+        details,
+        context,
+        mockMessageBus,
+      );
+
+      expect(areCommandsTrustedForSession(mockConfig, ['rg'])).toBe(false);
+      expect(mockMessageBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('should not trust a command that only appeared as a wrapper argument', async () => {
+      const mockConfig = {
+        getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.YOLO),
+        getDisableAlwaysAllow: vi.fn().mockReturnValue(false),
+        getSessionId: vi.fn().mockReturnValue('test-session-id'),
+      } as unknown as Mocked<Config>;
+      const mockMessageBus = {
+        publish: vi.fn(),
+      } as unknown as Mocked<MessageBus>;
+      const context = {
+        config: mockConfig,
+        messageBus: mockMessageBus,
+      } as unknown as AgentLoopContext;
+      const tool = { name: 'run_shell_command' } as AnyDeclarativeTool;
+      const details: ToolExecuteConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'sudo apt install -y git',
+        rootCommand: 'apt',
+        rootCommands: ['apt'],
+        untrustedFlags: ['-y'],
+        onConfirm: vi.fn(),
+      };
+
+      await updatePolicy(
+        tool,
+        ToolConfirmationOutcome.ProceedAlwaysTaint,
+        details,
+        context,
+        mockMessageBus,
+      );
+
+      expect(areCommandsTrustedForSession(mockConfig, ['apt'])).toBe(true);
+      expect(areCommandsTrustedForSession(mockConfig, ['git'])).toBe(false);
+    });
+
+    it('should not record taint trust for build-file-risk confirmations', async () => {
+      const mockConfig = {
+        getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.YOLO),
+        getDisableAlwaysAllow: vi.fn().mockReturnValue(false),
+        getSessionId: vi.fn().mockReturnValue('test-session-id'),
+      } as unknown as Mocked<Config>;
+      const mockMessageBus = {
+        publish: vi.fn(),
+      } as unknown as Mocked<MessageBus>;
+      const context = {
+        config: mockConfig,
+        messageBus: mockMessageBus,
+      } as unknown as AgentLoopContext;
+      const tool = { name: 'run_shell_command' } as AnyDeclarativeTool;
+      const details: ToolExecuteConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'blaze test //foo:all',
+        rootCommand: 'blaze',
+        rootCommands: ['blaze'],
+        untrustedFlags: ['--test_arg=evil'],
+        modifiedBuildFiles: ['/workspace/foo/BUILD'],
+        onConfirm: vi.fn(),
+      };
+
+      await updatePolicy(
+        tool,
+        ToolConfirmationOutcome.ProceedAlwaysTaint,
+        details,
+        context,
+        mockMessageBus,
+      );
+
+      expect(areCommandsTrustedForSession(mockConfig, ['blaze'])).toBe(false);
+      expect(mockMessageBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('should not record taint trust for execution flags outside YOLO', async () => {
+      const mockConfig = {
+        getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.DEFAULT),
+        getDisableAlwaysAllow: vi.fn().mockReturnValue(false),
+        getSessionId: vi.fn().mockReturnValue('test-session-id'),
+      } as unknown as Mocked<Config>;
+      const mockMessageBus = {
+        publish: vi.fn(),
+      } as unknown as Mocked<MessageBus>;
+      const context = {
+        config: mockConfig,
+        messageBus: mockMessageBus,
+      } as unknown as AgentLoopContext;
+      const tool = { name: 'run_shell_command' } as AnyDeclarativeTool;
+      const details: ToolExecuteConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'rg --pre /tmp/evil.sh foo .',
+        rootCommand: 'rg',
+        rootCommands: ['rg'],
+        untrustedFlags: ['--pre', '/tmp/evil.sh'],
+        taintExecutionFlag: true,
+        onConfirm: vi.fn(),
+      };
+
+      await updatePolicy(
+        tool,
+        ToolConfirmationOutcome.ProceedAlwaysTaint,
+        details,
+        context,
+        mockMessageBus,
+      );
+
+      expect(areCommandsTrustedForSession(mockConfig, ['rg'])).toBe(false);
+      expect(mockMessageBus.publish).not.toHaveBeenCalled();
     });
   });
 

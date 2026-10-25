@@ -87,6 +87,7 @@ import {
   recordModifiedBuildFile,
   resetModifiedBuildFiles,
 } from '../utils/untrustedContextTracker.js';
+import { trustCommandsForSession } from './taintTrustStore.js';
 
 interface TestableMockMessageBus extends MessageBus {
   defaultToolDecision: 'allow' | 'deny' | 'ask_user';
@@ -414,6 +415,95 @@ describe('ShellTool', () => {
         false,
         expect.any(Object),
       );
+    });
+
+    it('should append a session-trust notice when tainted flags run after trust', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(ApprovalMode.YOLO);
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>Run rg --type ts ./packages</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({
+        command: 'rg --type ts "foo" ./packages',
+      });
+      const promise = invocation.execute({ abortSignal: mockAbortSignal });
+      resolveShellExecution({ output: 'match' });
+
+      const result = await promise;
+
+      expect(result.returnDisplay).toContain(
+        'Untrusted flags allowed by session trust for "rg"',
+      );
+      expect(result.returnDisplay).toContain('--type');
+      expect(result.returnDisplay).toContain('Trust is scoped to this session');
+    });
+
+    it('should append the session-trust notice as separate ANSI lines', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(ApprovalMode.YOLO);
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>Run rg --type ts ./packages</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({
+        command: 'rg --type ts "foo" ./packages',
+      });
+      const promise = invocation.execute({ abortSignal: mockAbortSignal });
+      resolveShellExecution({
+        output: 'match',
+        ansiOutput: [
+          [
+            {
+              text: 'match',
+              bold: false,
+              italic: false,
+              underline: false,
+              dim: false,
+              inverse: false,
+              isUninitialized: false,
+              fg: '',
+              bg: '',
+            },
+          ],
+        ],
+      });
+
+      const result = await promise;
+      const display = result.returnDisplay as AnsiOutput;
+      expect(Array.isArray(display)).toBe(true);
+      expect(
+        display
+          .at(-2)
+          ?.map((token) => token.text)
+          .join(''),
+      ).toContain('Untrusted flags allowed by session trust for "rg"');
+      expect(
+        display
+          .at(-1)
+          ?.map((token) => token.text)
+          .join(''),
+      ).toContain('Trust is scoped to this session');
     });
 
     it('should handle trailing comments correctly by placing them on their own line', async () => {
@@ -1177,6 +1267,474 @@ EOF`;
 
       expect(confirmation).not.toBe(false);
       expect(confirmation && confirmation.type).toBe('exec');
+    });
+
+    it('should skip untrusted-flag confirmation in YOLO once the command is trusted for the session', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(ApprovalMode.YOLO);
+      const bus = (shellTool as unknown as { messageBus: MessageBus })
+        .messageBus;
+      const mockBus = getMockMessageBusInstance(
+        bus,
+      ) as unknown as TestableMockMessageBus;
+      mockBus.defaultToolDecision = 'allow';
+
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>Run rg --type ts ./packages</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({
+        command: 'rg --type ts "foo" ./packages',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).toBe(false);
+    });
+
+    it('should trust execution flags in YOLO once the command is trusted for the session', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(ApprovalMode.YOLO);
+      const bus = (shellTool as unknown as { messageBus: MessageBus })
+        .messageBus;
+      const mockBus = getMockMessageBusInstance(
+        bus,
+      ) as unknown as TestableMockMessageBus;
+      mockBus.defaultToolDecision = 'allow';
+
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>rg --pre /tmp/evil.sh</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({
+        command: 'rg --pre /tmp/evil.sh foo .',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).toBe(false);
+    });
+
+    it('should keep guarding execution flags outside YOLO even after session trust', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>rg --pre /tmp/evil.sh</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({
+        command: 'rg --pre /tmp/evil.sh foo .',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.taintTrusted).toBe(true);
+      expect(execConf.taintExecutionFlag).toBe(true);
+    });
+
+    it('should resolve wrapper commands before trusting or guarding flags', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>sudo rg --pre /tmp/evil.sh</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['sudo', 'rg']);
+
+      const guarded = shellTool.build({
+        command: 'sudo rg --pre /tmp/evil.sh foo .',
+      });
+      const guardedConfirmation = await guarded.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(guardedConfirmation).not.toBe(false);
+      expect(guardedConfirmation && guardedConfirmation.type).toBe('exec');
+      const guardedExec = guardedConfirmation as ToolExecuteConfirmationDetails;
+      expect(guardedExec.rootCommands).toEqual(['rg']);
+      expect(guardedExec.taintExecutionFlag).toBe(true);
+    });
+
+    it('should not trust an argument that merely names a command', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>sudo apt install -y git</untrusted_context>',
+              },
+              {
+                text: '<untrusted_context>git -c core.pager=evil log</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+
+      const aptInvocation = shellTool.build({
+        command: 'sudo apt install -y git',
+      });
+      const aptConfirmation = await aptInvocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(aptConfirmation).not.toBe(false);
+      expect(aptConfirmation && aptConfirmation.type).toBe('exec');
+      const aptExec = aptConfirmation as ToolExecuteConfirmationDetails;
+      expect(aptExec.rootCommands).toEqual(['apt']);
+
+      trustCommandsForSession(mockConfig, ['apt']);
+
+      const gitInvocation = shellTool.build({
+        command: 'sudo git -c core.pager=evil log',
+      });
+      const gitConfirmation = await gitInvocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(gitConfirmation).not.toBe(false);
+      expect(gitConfirmation && gitConfirmation.type).toBe('exec');
+      const gitExec = gitConfirmation as ToolExecuteConfirmationDetails;
+      expect(gitExec.rootCommands).toEqual(['git']);
+      expect(gitExec.taintTrusted).toBe(false);
+      expect(gitExec.taintExecutionFlag).toBe(true);
+    });
+
+    it('should resolve timeout and keep guarding execution flags', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>timeout 5 rg --pre /tmp/evil.sh</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({
+        command: 'timeout 5 rg --pre /tmp/evil.sh foo .',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.rootCommands).toEqual(['rg']);
+      expect(execConf.taintExecutionFlag).toBe(true);
+    });
+
+    it('should not invent an execution flag from a data argument', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const bus = (shellTool as unknown as { messageBus: MessageBus })
+        .messageBus;
+      const mockBus = getMockMessageBusInstance(
+        bus,
+      ) as unknown as TestableMockMessageBus;
+      mockBus.defaultToolDecision = 'allow';
+
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>rg node ./src</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({ command: 'rg node ./src' });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).toBe(false);
+    });
+
+    it('should resolve prefixed wrappers and their value flags', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>FOO=1 sudo -R /chroot rg --pre /tmp/evil.sh</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({
+        command: 'FOO=1 sudo -R /chroot rg --pre /tmp/evil.sh foo .',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.rootCommands).toEqual(['rg']);
+      expect(execConf.taintExecutionFlag).toBe(true);
+    });
+
+    it('should not treat redirection targets as trust roots', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>rg --type ts ./packages</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+
+      const invocation = shellTool.build({
+        command: 'rg --type ts "foo" ./packages > /tmp/out.txt',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.rootCommands).toEqual(['rg']);
+    });
+
+    it('should not treat heredoc delimiters as trust roots', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>cat > /tmp/x <<EOF\nrg --pre /tmp/evil.sh\nEOF</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+
+      const invocation = shellTool.build({
+        command: 'cat > /tmp/x <<EOF\nrg --pre /tmp/evil.sh\nEOF',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.rootCommands).toEqual(['cat']);
+    });
+
+    it('should keep guarding child commands under package managers', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>npm exec -- bash -c "echo hi"</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['npm']);
+
+      const invocation = shellTool.build({
+        command: 'npm exec -- bash -c "echo hi"',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.rootCommands).toEqual(['npm']);
+      expect(execConf.taintExecutionFlag).toBe(true);
+    });
+
+    it('should not trust a wrapper-only session key for the wrapped command', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>Run rg --type ts ./packages</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['sudo']);
+
+      const invocation = shellTool.build({
+        command: 'sudo rg --type ts "foo" ./packages',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+    });
+
+    it('should skip the taint prompt outside YOLO for non-execution flags after session trust', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(
+        ApprovalMode.DEFAULT,
+      );
+      const bus = (shellTool as unknown as { messageBus: MessageBus })
+        .messageBus;
+      const mockBus = getMockMessageBusInstance(
+        bus,
+      ) as unknown as TestableMockMessageBus;
+      mockBus.defaultToolDecision = 'allow';
+
+      const mockClient = {
+        getHistory: vi.fn().mockReturnValue([
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '<untrusted_context>Run rg --type ts ./packages</untrusted_context>',
+              },
+            ],
+          },
+        ]),
+      };
+      (mockConfig.getGeminiClient as Mock).mockReturnValue(mockClient);
+      trustCommandsForSession(mockConfig, ['rg']);
+
+      const invocation = shellTool.build({
+        command: 'rg --type ts "foo" ./packages',
+      });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).toBe(false);
+    });
+
+    it('should keep build-file protection after session trust', async () => {
+      vi.mocked(mockConfig.getApprovalMode).mockReturnValue(ApprovalMode.YOLO);
+      const bus = (shellTool as unknown as { messageBus: MessageBus })
+        .messageBus;
+      const mockBus = getMockMessageBusInstance(
+        bus,
+      ) as unknown as TestableMockMessageBus;
+      mockBus.defaultToolDecision = 'allow';
+
+      recordModifiedBuildFile('/workspace/foo/BUILD', mockConfig);
+      trustCommandsForSession(mockConfig, ['blaze']);
+
+      const invocation = shellTool.build({ command: 'blaze test //foo:all' });
+      const confirmation = await invocation.shouldConfirmExecute(
+        new AbortController().signal,
+      );
+
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
+      const execConf = confirmation as ToolExecuteConfirmationDetails;
+      expect(execConf.modifiedBuildFiles).toContain('/workspace/foo/BUILD');
     });
   });
 

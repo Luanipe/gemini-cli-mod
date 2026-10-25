@@ -975,8 +975,139 @@ describe('ToolConfirmationMessage', () => {
       );
       expect(frame).toContain('--test_arg=malicious_flag');
       expect(frame).toContain('Allow once');
-      expect(frame).not.toContain('Allow for this session');
+      expect(frame).toContain('Allow "blaze" for this session');
       expect(frame).not.toContain('Allow this command for all future sessions');
+      unmount();
+    });
+
+    it('should label session taint trust as all-flags in YOLO', async () => {
+      const confirmationDetails: SerializableConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'rg --type ts "foo" ./packages',
+        rootCommand: 'rg',
+        rootCommands: ['rg'],
+        untrustedFlags: ['--type', './packages'],
+      };
+      const yoloConfig = {
+        isTrustedFolder: () => true,
+        getIdeMode: () => false,
+        getDisableAlwaysAllow: () => false,
+        getApprovalMode: () => 'yolo',
+      } as unknown as Config;
+
+      const { lastFrame, unmount } = await renderWithProviders(
+        <ToolConfirmationMessage
+          callId="test-untrusted-exec-yolo"
+          confirmationDetails={confirmationDetails}
+          config={yoloConfig}
+          getPreferredEditor={vi.fn()}
+          availableTerminalHeight={30}
+          terminalWidth={80}
+          toolName="run_shell_command"
+        />,
+      );
+
+      const frame = lastFrame();
+      expect(frame).toContain('Allow "rg" for this session (all flags)');
+      unmount();
+    });
+
+    it('should not offer session taint trust for execution flags outside YOLO', async () => {
+      const confirmationDetails: SerializableConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'rg --pre /tmp/evil.sh foo .',
+        rootCommand: 'rg',
+        rootCommands: ['rg'],
+        untrustedFlags: ['--pre', '/tmp/evil.sh'],
+        taintExecutionFlag: true,
+      };
+
+      const { lastFrame, unmount } = await renderWithProviders(
+        <ToolConfirmationMessage
+          callId="test-untrusted-exec-guard"
+          confirmationDetails={confirmationDetails}
+          config={mockConfig}
+          getPreferredEditor={vi.fn()}
+          availableTerminalHeight={30}
+          terminalWidth={80}
+          toolName="run_shell_command"
+        />,
+      );
+
+      const frame = lastFrame();
+      expect(frame).toContain('Allow once');
+      expect(frame).not.toContain('Allow "rg" for this session');
+      expect(frame).toContain(
+        'Execution flags are not covered by session trust',
+      );
+      expect(frame).not.toContain('Selecting "Allow ... for this session"');
+      unmount();
+    });
+
+    it('should explain when session trust is disabled by settings', async () => {
+      const confirmationDetails: SerializableConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'rg --type ts "foo" ./packages',
+        rootCommand: 'rg',
+        rootCommands: ['rg'],
+        untrustedFlags: ['--type', './packages'],
+      };
+      const disabledConfig = {
+        isTrustedFolder: () => true,
+        getIdeMode: () => false,
+        getDisableAlwaysAllow: () => true,
+        getApprovalMode: () => 'default',
+      } as unknown as Config;
+
+      const { lastFrame, unmount } = await renderWithProviders(
+        <ToolConfirmationMessage
+          callId="test-untrusted-exec-disabled"
+          confirmationDetails={confirmationDetails}
+          config={disabledConfig}
+          getPreferredEditor={vi.fn()}
+          availableTerminalHeight={30}
+          terminalWidth={80}
+          toolName="run_shell_command"
+        />,
+      );
+
+      const frame = lastFrame();
+      expect(frame).toContain('Session trust is disabled by settings');
+      expect(frame).not.toContain('untrusted folder');
+      unmount();
+    });
+
+    it('should not offer session taint trust when the command is already trusted', async () => {
+      const confirmationDetails: SerializableConfirmationDetails = {
+        type: 'exec',
+        title: 'Confirm Shell Command',
+        command: 'rg --type ts "foo" ./packages',
+        rootCommand: 'rg',
+        rootCommands: ['rg'],
+        untrustedFlags: ['--type', './packages'],
+        taintTrusted: true,
+      };
+
+      const { lastFrame, unmount } = await renderWithProviders(
+        <ToolConfirmationMessage
+          callId="test-untrusted-exec-trusted"
+          confirmationDetails={confirmationDetails}
+          config={mockConfig}
+          getPreferredEditor={vi.fn()}
+          availableTerminalHeight={30}
+          terminalWidth={80}
+          toolName="run_shell_command"
+        />,
+      );
+
+      const frame = lastFrame();
+      expect(frame).toContain(
+        'Session trust is active for this command until the session ends.',
+      );
+      expect(frame).not.toContain('Allow "rg" for this session');
       unmount();
     });
 

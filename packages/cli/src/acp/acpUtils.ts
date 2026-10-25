@@ -119,7 +119,39 @@ export function toPermissionOptions(
           });
         }
         break;
-      case 'exec':
+      case 'exec': {
+        const hasUntrustedFlags =
+          (confirmation.untrustedFlags?.length ?? 0) > 0;
+        const hasModifiedBuildFiles =
+          (confirmation.modifiedBuildFiles?.length ?? 0) > 0;
+
+        // Build-file risk keeps the stricter, per-invocation flow.
+        if (hasModifiedBuildFiles) {
+          break;
+        }
+
+        if (hasUntrustedFlags) {
+          const isYolo = config.getApprovalMode() === ApprovalMode.YOLO;
+          const canTrustTaintForSession =
+            confirmation.taintTrusted !== true &&
+            (isYolo || confirmation.taintExecutionFlag !== true);
+          if (canTrustTaintForSession) {
+            const rootCommands = confirmation.rootCommands ?? [];
+            const rootLabel =
+              rootCommands.length > 0
+                ? rootCommands.map((root) => `"${root}"`).join(', ')
+                : `"${confirmation.rootCommand}"`;
+            options.push({
+              optionId: ToolConfirmationOutcome.ProceedAlwaysTaint,
+              name: isYolo
+                ? `Allow ${rootLabel} for this session (all flags)`
+                : `Allow ${rootLabel} for this session`,
+              kind: 'allow_always',
+            });
+          }
+          break;
+        }
+
         options.push({
           optionId: ToolConfirmationOutcome.ProceedAlways,
           name: 'Allow for this session',
@@ -133,6 +165,7 @@ export function toPermissionOptions(
           });
         }
         break;
+      }
       case 'mcp':
         options.push(
           {
